@@ -11,11 +11,11 @@ from PyQt6.QtWidgets import (
     QCheckBox, QFrame, QScrollArea, QTableWidget, QTableWidgetItem, QFileDialog, QMessageBox
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QPropertyAnimation, QEasingCurve, QPoint
-from PyQt6.QtGui import QFont, QPalette, QColor
+from PyQt6.QtGui import QFont, QColor
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
-from games import GameFactory
-from solver import FPSolver
+from src.core.games import GameFactory
+from src.core.solver import FPSolver
 
 # Enable antialiasing for better plot quality
 pg.setConfigOptions(antialias=True)
@@ -39,15 +39,15 @@ class SimulationWorker(QThread):
         seed = self.config['seed']
         rng = np.random.default_rng(seed)
         
-        if mode == 'wang':
-            base_matrix = GameFactory.get_wang_2025()
-            for i in range(batch_size):
-                if batch_size > 1:
-                    perturbation = rng.uniform(-0.01, 0.01, size=base_matrix.shape)
-                    perturbed_matrix = base_matrix + perturbation
-                else:
-                    perturbed_matrix = base_matrix
-                self.solvers.append(FPSolver(perturbed_matrix))
+        if mode == 'custom':
+            # Use custom matrix from config
+            custom_matrix = self.config.get('custom_matrix')
+            if custom_matrix is not None:
+                self.solvers.append(FPSolver(custom_matrix))
+            else:
+                # Fallback to default 2x2 if no matrix provided
+                mat = np.array([[0.0, -1.0], [1.0, 0.0]])
+                self.solvers.append(FPSolver(mat))
         elif mode == 'mixed':
             sizes = self.config['sizes']
             size_idx = 0
@@ -154,8 +154,14 @@ class FPAnalyzerGUI(QMainWindow):
     
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Zero Sum Fictitious Play Convergence Analyzer")
-        self.setGeometry(100, 100, 1600, 900)
+        self.setWindowTitle("Zero Sum Fictitious Play Simulator")
+        
+        # Center window on screen
+        self.resize(1600, 900)
+        screen_geo = QApplication.primaryScreen().geometry()
+        x = (screen_geo.width() - self.width()) // 2
+        y = (screen_geo.height() - self.height()) // 2
+        self.move(x, y)
         
         # Simulation state
         self.worker = None
@@ -167,6 +173,7 @@ class FPAnalyzerGUI(QMainWindow):
         self.game_matrices = []  # Store payoff matrices for display
         self.selected_game = None
         self.log_scale = True
+        self.individual_games_visible = True  # Track visibility of individual game plots
         
         # Pre-loaded iteration data cache
         self.strategy_cache = {}  # {(game_idx, iter_idx): (row_strategy, col_strategy)}
@@ -196,6 +203,9 @@ class FPAnalyzerGUI(QMainWindow):
         self.current_tab_index = 0
         self.last_rendered_data = {'iterations': None, 'gaps': None}
         self.tab_needs_refresh = {0: False, 1: False}
+        
+        # Iteration marker for slider trace
+        self.iteration_marker = None
         
         # Setup UI
         self.setup_ui()
@@ -233,10 +243,14 @@ class FPAnalyzerGUI(QMainWindow):
         self.plot_widget.setLogMode(x=True, y=True)
         self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
         self.plot_widget.setBackground('#161719')
+        self.plot_widget.enableAutoRange(axis=pg.ViewBox.XYAxes, enable=True)
+        self.plot_widget.setAutoVisible(y=True)
         
-        # Add legend widget (will be populated during updates)
-        self.plot_widget.addLegend(offset=(10, 10))
+        # Add legend widget in top right corner (will be populated during updates)
+        self.plot_widget.addLegend(offset=(-10, 10))
         self.plot_legend = self.plot_widget.plotItem.legend
+        self.plot_legend.setParentItem(self.plot_widget.plotItem.vb)
+        self.plot_legend.anchor((1, 0), (1, 0))
         
         center_layout.addWidget(self.plot_widget, stretch=2)
         
@@ -257,7 +271,8 @@ class FPAnalyzerGUI(QMainWindow):
         self.alpha_plot.setLogMode(x=True, y=False)
         self.alpha_plot.showGrid(x=True, y=True, alpha=0.3)
         self.alpha_plot.setBackground('#161719')
-        self.alpha_plot.setYRange(-0.8, -0.2)
+        self.alpha_plot.enableAutoRange(axis=pg.ViewBox.XYAxes, enable=True)
+        self.alpha_plot.setAutoVisible(y=True)
         # Hide right and top axes to prevent black corner squares
         self.alpha_plot.showAxis('right', False)
         self.alpha_plot.showAxis('top', False)
@@ -270,6 +285,8 @@ class FPAnalyzerGUI(QMainWindow):
         self.ratio_plot.setLogMode(x=True, y=False)
         self.ratio_plot.showGrid(x=True, y=True, alpha=0.3)
         self.ratio_plot.setBackground('#161719')
+        self.ratio_plot.enableAutoRange(axis=pg.ViewBox.XYAxes, enable=True)
+        self.ratio_plot.setAutoVisible(y=True)
         # Hide right and top axes to prevent black corner squares
         self.ratio_plot.showAxis('right', False)
         self.ratio_plot.showAxis('top', False)
@@ -370,15 +387,232 @@ class FPAnalyzerGUI(QMainWindow):
             else:
                 self.plot_legend.hide()
     
+    def _toggle_individual_games(self, state):
+        """Toggle visibility of all individual game plots."""
+        self.individual_games_visible = (state == 2)  # Qt.Checked = 2
+        
+        # Show/hide game selector and export buttons based on state
+        if hasattr(self, 'game_select_spin'):
+            # Find the game selector layout and hide/show it
+            for i in range(self.weights_panel.layout().count()):
+                item = self.weights_panel.layout().itemAt(i)
+                if item and item.layout():
+                    # Check if this is the game selector layout (contains the game spinbox)
+                    for j in range(item.layout().count()):
+                        widget = item.layout().itemAt(j).widget()
+                        if widget == self.game_select_spin:
+                            # Hide/show entire game selector row
+                            for k in range(item.layout().count()):
+                                w = item.layout().itemAt(k).widget()
+                                if w:
+                                    w.setVisible(self.individual_games_visible)
+                            break
+        
+        # If games are hidden and a game is selected, deselect it
+        if not self.individual_games_visible and self.selected_game is not None:
+            self.deselect_game()
+        
+        # Update plots to apply visibility state
+        if hasattr(self, 'iterations') and self.iterations:
+            self.update_plots()
+            self._update_weights_display()
+    
     def _on_mode_changed(self, index):
-        """Show/hide mixed size configuration based on selected mode."""
-        # Show mixed size config only when "Mixed Sizes" is selected (index 2)
-        self.mixed_size_group.setVisible(index == 2)
+        """Show/hide configuration panels based on selected mode."""
+        # Show mixed size config only when "Mixed Sizes" is selected (index 1)
+        self.mixed_size_group.setVisible(index == 1)
+        # Show custom matrix editor only when "Custom Matrix" is selected (index 2)
+        self.custom_matrix_group.setVisible(index == 2)
+        
+        # Disable batch size for custom matrix mode (always 1 game)
+        if index == 2:
+            self.batch_spin.setValue(1)
+            self.batch_spin.setEnabled(False)
+            self.batch_slider.setValue(1)
+            self.batch_slider.setEnabled(False)
+        else:
+            self.batch_spin.setEnabled(True)
+            self.batch_slider.setEnabled(True)
     
     def _set_all_sizes(self, checked):
         """Select or deselect all game size checkboxes."""
         for checkbox in self.size_checkboxes.values():
             checkbox.setChecked(checked)
+    
+    def _on_matrix_dimensions_changed(self):
+        """Update matrix table when dimensions change."""
+        rows = self.matrix_rows_spin.value()
+        cols = self.matrix_cols_spin.value()
+        
+        # Store current values
+        old_data = {}
+        for i in range(self.matrix_table.rowCount()):
+            for j in range(self.matrix_table.columnCount()):
+                item = self.matrix_table.item(i, j)
+                if item:
+                    old_data[(i, j)] = item.text()
+        
+        # Resize table
+        self.matrix_table.setRowCount(rows)
+        self.matrix_table.setColumnCount(cols)
+        
+        # Update headers
+        self.matrix_table.setHorizontalHeaderLabels([f"C{j}" for j in range(cols)])
+        self.matrix_table.setVerticalHeaderLabels([f"R{i}" for i in range(rows)])
+        
+        # Restore old values and initialize new cells
+        for i in range(rows):
+            for j in range(cols):
+                if (i, j) in old_data:
+                    value = old_data[(i, j)]
+                else:
+                    value = "0.0"
+                item = QTableWidgetItem(value)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                item.setFont(QFont("Consolas", 10))
+                self.matrix_table.setItem(i, j, item)
+        
+        # Resize table to fit content
+        self._resize_matrix_table()
+    
+    def _resize_matrix_table(self):
+        """Dynamically resize matrix table to fit content while maintaining readability."""
+        # Calculate required size based on content
+        total_width = self.matrix_table.verticalHeader().width() + 4
+        total_height = self.matrix_table.horizontalHeader().height() + 4
+        
+        for i in range(self.matrix_table.columnCount()):
+            total_width += self.matrix_table.columnWidth(i)
+        
+        for i in range(self.matrix_table.rowCount()):
+            total_height += self.matrix_table.rowHeight(i)
+        
+        # Set minimum sizes to ensure readability
+        min_cell_width = 70
+        min_cell_height = 35
+        
+        # Ensure minimum readable size
+        total_width = max(total_width, min_cell_width * min(self.matrix_table.columnCount(), 4) + 
+                         self.matrix_table.verticalHeader().width() + 4)
+        total_height = max(total_height, min_cell_height * min(self.matrix_table.rowCount(), 4) + 
+                          self.matrix_table.horizontalHeader().height() + 4)
+        
+        # Set table size
+        self.matrix_table.setMinimumSize(total_width, total_height)
+        self.matrix_table.setMaximumSize(total_width, total_height)
+        
+        # Update scroll area to show table properly
+        self.matrix_scroll.setMinimumWidth(min(total_width + 20, 280))  # +20 for scrollbar
+        
+        # Process events to ensure proper rendering
+        QApplication.processEvents()
+    
+    def _get_matrix_values(self):
+        """Extract current matrix values from table."""
+        rows = self.matrix_table.rowCount()
+        cols = self.matrix_table.columnCount()
+        matrix = np.zeros((rows, cols))
+        
+        for i in range(rows):
+            for j in range(cols):
+                item = self.matrix_table.item(i, j)
+                if item:
+                    try:
+                        matrix[i, j] = float(item.text())
+                    except ValueError:
+                        matrix[i, j] = 0.0
+        return matrix
+    
+    def _set_matrix_values(self, matrix):
+        """Set matrix values in table."""
+        rows, cols = matrix.shape
+        for i in range(rows):
+            for j in range(cols):
+                item = self.matrix_table.item(i, j)
+                if item:
+                    item.setText(f"{matrix[i, j]:.4f}")
+    
+    def _make_zero_sum(self):
+        """Convert matrix to zero-sum (skew-symmetric)."""
+        matrix = self._get_matrix_values()
+        rows, cols = matrix.shape
+        
+        if rows != cols:
+            QMessageBox.warning(self, "Non-square Matrix", "Zero-sum games require square matrices.")
+            return
+        
+        # Make skew-symmetric: A = (A - A^T) / 2
+        matrix = (matrix - matrix.T) / 2
+        self._set_matrix_values(matrix)
+    
+    def _make_diagonal(self):
+        """Keep only diagonal elements."""
+        matrix = self._get_matrix_values()
+        rows, cols = matrix.shape
+        
+        # Zero out non-diagonal elements
+        for i in range(rows):
+            for j in range(cols):
+                if i != j:
+                    matrix[i, j] = 0.0
+        
+        self._set_matrix_values(matrix)
+    
+    def _make_upper_triangular(self):
+        """Keep only upper triangular elements."""
+        matrix = self._get_matrix_values()
+        rows, cols = matrix.shape
+        
+        # Zero out lower triangular elements
+        for i in range(rows):
+            for j in range(cols):
+                if i > j:
+                    matrix[i, j] = 0.0
+        
+        self._set_matrix_values(matrix)
+    
+    def _make_lower_triangular(self):
+        """Keep only lower triangular elements."""
+        matrix = self._get_matrix_values()
+        rows, cols = matrix.shape
+        
+        # Zero out upper triangular elements
+        for i in range(rows):
+            for j in range(cols):
+                if i < j:
+                    matrix[i, j] = 0.0
+        
+        self._set_matrix_values(matrix)
+    
+    def _randomize_selected_cells(self):
+        """Fill selected cells with random values."""
+        selected_ranges = self.matrix_table.selectedRanges()
+        if not selected_ranges:
+            QMessageBox.information(self, "No Selection", "Please select cells to randomize.")
+            return
+        
+        rng = np.random.default_rng()
+        for selected_range in selected_ranges:
+            for i in range(selected_range.topRow(), selected_range.bottomRow() + 1):
+                for j in range(selected_range.leftColumn(), selected_range.rightColumn() + 1):
+                    item = self.matrix_table.item(i, j)
+                    if item:
+                        value = rng.uniform(-1.0, 1.0)
+                        item.setText(f"{value:.4f}")
+    
+    def _clear_selected_cells(self):
+        """Clear selected cells (set to zero)."""
+        selected_ranges = self.matrix_table.selectedRanges()
+        if not selected_ranges:
+            QMessageBox.information(self, "No Selection", "Please select cells to clear.")
+            return
+        
+        for selected_range in selected_ranges:
+            for i in range(selected_range.topRow(), selected_range.bottomRow() + 1):
+                for j in range(selected_range.leftColumn(), selected_range.rightColumn() + 1):
+                    item = self.matrix_table.item(i, j)
+                    if item:
+                        item.setText("0.0")
     
     def _on_game_select_changed(self, value):
         """Handle game selection change from spin box."""
@@ -393,6 +627,7 @@ class FPAnalyzerGUI(QMainWindow):
         self.iter_select_spin.blockSignals(True)
         self.iter_select_spin.setValue(value)
         self.iter_select_spin.blockSignals(False)
+        self._update_iteration_marker(value)
         self._update_weights_display()
     
     def _on_iteration_spin_changed(self, value):
@@ -402,7 +637,42 @@ class FPAnalyzerGUI(QMainWindow):
             self.iter_select_slider.blockSignals(True)
             self.iter_select_slider.setValue(value)
             self.iter_select_slider.blockSignals(False)
+        self._update_iteration_marker(value)
         self._update_weights_display()
+    
+    def _update_iteration_marker(self, iter_value):
+        """Update the iteration marker dot on the plot."""
+        if not self.iterations or not self.all_gaps:
+            return
+        
+        # Remove old marker if it exists
+        if self.iteration_marker is not None:
+            try:
+                self.plot_widget.removeItem(self.iteration_marker)
+            except:
+                pass
+            self.iteration_marker = None
+        
+        # Get iteration index (iter_value is 1-indexed)
+        iter_idx = iter_value - 1
+        if iter_idx < 0 or iter_idx >= len(self.iterations):
+            return
+        
+        # Get the iteration number and average gap at this point
+        t = self.iterations[iter_idx]
+        all_gaps_array = np.array(self.all_gaps)
+        avg_gap = np.mean(all_gaps_array[:, iter_idx]) if iter_idx < all_gaps_array.shape[1] else 0.0
+        
+        # Create a scatter plot marker at this position
+        self.iteration_marker = self.plot_widget.plot(
+            [t], [avg_gap],
+            pen=None,
+            symbol='o',
+            symbolSize=15,
+            symbolBrush=(255, 255, 255, 200),
+            symbolPen=pg.mkPen(color=(250, 222, 42), width=2),
+            name=None
+        )
     
     def _create_section_header(self, title, section_id="", icon="", collapsible=False, content_widget=None):
         """Create a styled section header with optional collapse toggle and drag handle."""
@@ -430,7 +700,6 @@ class FPAnalyzerGUI(QMainWindow):
             QLabel:hover {
                 background: #2a2a2a;
                 color: #909090;
-                cursor: move;
             }
         """)
         drag_handle.setCursor(Qt.CursorShape.OpenHandCursor)
@@ -654,6 +923,11 @@ class FPAnalyzerGUI(QMainWindow):
     def _update_weights_display(self):
         """Update the weights display for the selected game and iteration."""
         if not self.iterations or not self.all_gaps:
+            return
+        
+        # If individual games are hidden, show average gap view
+        if not self.individual_games_visible:
+            self._show_average_gap_view()
             return
         
         # Store current collapse states before clearing
@@ -987,6 +1261,165 @@ class FPAnalyzerGUI(QMainWindow):
         # Re-enable slider signals after update is complete
         self.iter_select_slider.blockSignals(False)
         self.iter_select_spin.blockSignals(False)
+    
+    def _show_average_gap_view(self):
+        """Display average gap statistics when individual games are hidden."""
+        iter_value = self.iter_select_spin.value()
+        
+        # Validate iteration index
+        if iter_value < 1 or iter_value > len(self.iterations):
+            return
+        
+        iter_idx = iter_value - 1
+        t = self.iterations[iter_idx]
+        
+        # Calculate average gap at this iteration
+        gaps_at_iter = [self.all_gaps[i][iter_idx] for i in range(len(self.all_gaps)) if iter_idx < len(self.all_gaps[i])]
+        avg_gap = np.mean(gaps_at_iter) if gaps_at_iter else 0.0
+        
+        # Save current scroll position
+        scroll_value = self.weights_scroll.verticalScrollBar().value()
+        
+        # Block slider signals
+        self.iter_select_slider.blockSignals(True)
+        self.iter_select_spin.blockSignals(True)
+        
+        # Hide container during rebuild
+        self.weights_container.setVisible(False)
+        
+        # Clear existing widgets
+        while self.weights_container_layout.count():
+            item = self.weights_container_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        
+        # Reset section toggles
+        self.section_toggles = []
+        
+        # ═══════════════════════════════════════════════════════════
+        # HEADER SECTION
+        # ═══════════════════════════════════════════════════════════
+        header = QLabel(f"Average Gap • Iteration {t:,}")
+        header.setStyleSheet("""
+            QLabel {
+                background: #202020;
+                color: #d0d0d0;
+                padding: 10px;
+                font-weight: bold;
+                font-size: 10pt;
+                border-bottom: 2px solid #404040;
+            }
+        """)
+        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.weights_container_layout.addWidget(header)
+        
+        # ═══════════════════════════════════════════════════════════
+        # CONVERGENCE METRICS SECTION
+        # ═══════════════════════════════════════════════════════════
+        metrics_frame = QFrame()
+        metrics_frame.setStyleSheet("""
+            QFrame {
+                background-color: #1a1a1a;
+                border: 1px solid #303030;
+                padding: 4px;
+            }
+        """)
+        metrics_layout = QVBoxLayout()
+        metrics_layout.setSpacing(1)
+        metrics_frame.setLayout(metrics_layout)
+        
+        karlins_ratio = avg_gap * np.sqrt(t) if t > 0 else 0.0
+        metrics_layout.addWidget(self._create_metric_row("Avg Duality Gap:", f"{avg_gap:.6e}", "#c0c0c0"))
+        metrics_layout.addWidget(self._create_metric_row("Karlin Ratio:", f"{karlins_ratio:.4f}", "#c0c0c0"))
+        metrics_layout.addWidget(self._create_metric_row("Theory Bound:", f"{1/np.sqrt(t):.6e}", "#c0c0c0"))
+        
+        # Add separator
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setStyleSheet("background-color: #404040; margin: 3px 0;")
+        metrics_layout.addWidget(sep)
+        
+        # Add ratio data
+        karlin_bound = 1.0 / np.sqrt(t)
+        gap_karlin_ratio = avg_gap / karlin_bound if karlin_bound > 0 else 0.0
+        metrics_layout.addWidget(self._create_metric_row("Gap/Karlin Ratio:", f"{gap_karlin_ratio:.4f}", "#c0c0c0"))
+        
+        wang_bound = 1.0 / (t**(1/3)) if t > 0 else 0.0
+        gap_wang_ratio = avg_gap / wang_bound if wang_bound > 0 else 0.0
+        metrics_layout.addWidget(self._create_metric_row("Gap/Wang Ratio:", f"{gap_wang_ratio:.4f}", "#c0c0c0"))
+        
+        metrics_header = self._create_section_header("Convergence Metrics", section_id="metrics", collapsible=True, content_widget=metrics_frame)
+        self.weights_container_layout.addWidget(metrics_header)
+        self.weights_container_layout.addWidget(metrics_frame)
+        
+        # ═══════════════════════════════════════════════════════════
+        # CONVERGENCE RATES SECTION
+        # ═══════════════════════════════════════════════════════════
+        if iter_idx >= 100:
+            rates_frame = QFrame()
+            rates_frame.setStyleSheet("""
+                QFrame {
+                    background-color: #1a1a1a;
+                    border: 1px solid #303030;
+                    padding: 4px;
+                }
+            """)
+            rates_layout = QVBoxLayout()
+            rates_layout.setSpacing(1)
+            rates_frame.setLayout(rates_layout)
+            
+            window = min(100, iter_idx // 2)
+            if window > 0 and iter_idx >= window:
+                # Calculate average gap convergence rate
+                avg_gaps_array = np.mean(self.all_gaps, axis=0)
+                log_t_start = np.log10(self.iterations[iter_idx - window])
+                log_t_end = np.log10(t)
+                log_gap_start = np.log10(max(avg_gaps_array[iter_idx - window], 1e-15))
+                log_gap_end = np.log10(max(avg_gap, 1e-15))
+                
+                avg_alpha = (log_gap_end - log_gap_start) / (log_t_end - log_t_start)
+                
+                rates_layout.addWidget(self._create_metric_row("Average Rate (α):", f"{avg_alpha:.4f}", "#c0c0c0"))
+            
+            # Separator
+            sep = QFrame()
+            sep.setFrameShape(QFrame.Shape.HLine)
+            sep.setStyleSheet("background-color: #444;")
+            rates_layout.addWidget(sep)
+            
+            # Theoretical references
+            ref_widget = QWidget()
+            ref_layout = QHBoxLayout()
+            ref_layout.setContentsMargins(5, 3, 5, 3)
+            ref_widget.setLayout(ref_layout)
+            
+            karlin_ref = QLabel("Karlin: -0.5000")
+            karlin_ref.setStyleSheet("color: #909090; font-size: 8pt; font-family: 'Consolas', monospace;")
+            wang_ref = QLabel("Wang: -0.3333")
+            wang_ref.setStyleSheet("color: #909090; font-size: 8pt; font-family: 'Consolas', monospace;")
+            
+            ref_layout.addWidget(karlin_ref)
+            ref_layout.addStretch()
+            ref_layout.addWidget(wang_ref)
+            
+            rates_layout.addWidget(ref_widget)
+            
+            rates_header = self._create_section_header("Convergence Rates", section_id="rates", collapsible=True, content_widget=rates_frame)
+            self.weights_container_layout.addWidget(rates_header)
+            self.weights_container_layout.addWidget(rates_frame)
+        
+        self.weights_container_layout.addStretch()
+        
+        # Process pending events
+        QApplication.processEvents()
+        
+        # Show container and restore scroll position
+        self.weights_container.setVisible(True)
+        QTimer.singleShot(0, lambda: self.weights_scroll.verticalScrollBar().setValue(scroll_value))
+        
+        # Re-enable slider signals
+        self.iter_select_slider.blockSignals(False)
+        self.iter_select_spin.blockSignals(False)
         
     def create_control_panel(self):
         """Create the control panel with simulation parameters."""
@@ -1018,12 +1451,36 @@ class FPAnalyzerGUI(QMainWindow):
             }
         """)
         
+        # Create individual games toggle
+        self.individual_games_toggle = QCheckBox("Show Individual Games")
+        self.individual_games_toggle.setChecked(True)
+        self.individual_games_toggle.stateChanged.connect(self._toggle_individual_games)
+        self.individual_games_toggle.setStyleSheet("""
+            QCheckBox {
+                color: #d8d9da;
+                font-weight: bold;
+                padding: 5px;
+            }
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+                border-radius: 4px;
+                border: 2px solid #707070;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #707070;
+            }
+            QCheckBox::indicator:unchecked {
+                background-color: #2e2e32;
+            }
+        """)
+        
         # Mode selection
         mode_layout = QHBoxLayout()
         mode_layout.addWidget(QLabel("Mode:"))
         self.mode_combo = QComboBox()
-        self.mode_combo.addItems(["Wang 2025", "Random Games", "Mixed Sizes"])
-        self.mode_combo.setCurrentIndex(1)  # Set Random Games as default
+        self.mode_combo.addItems(["Random Games", "Mixed Sizes", "Custom Matrix"])
+        self.mode_combo.setCurrentIndex(0)  # Set Random Games as default
         self.mode_combo.currentIndexChanged.connect(self._on_mode_changed)
         mode_layout.addWidget(self.mode_combo)
         layout.addLayout(mode_layout)
@@ -1096,6 +1553,170 @@ class FPAnalyzerGUI(QMainWindow):
         self.mixed_size_group.setLayout(mixed_layout)
         layout.addWidget(self.mixed_size_group)
         
+        # Custom matrix configuration (initially hidden)
+        self.custom_matrix_group = QGroupBox("Custom Matrix Editor")
+        self.custom_matrix_group.setVisible(False)
+        custom_layout = QVBoxLayout()
+        
+        # Matrix dimensions
+        dim_layout = QHBoxLayout()
+        dim_layout.addWidget(QLabel("Rows:"))
+        self.matrix_rows_spin = QSpinBox()
+        self.matrix_rows_spin.setMinimum(2)
+        self.matrix_rows_spin.setMaximum(20)
+        self.matrix_rows_spin.setValue(2)
+        self.matrix_rows_spin.setFixedWidth(60)
+        self.matrix_rows_spin.valueChanged.connect(self._on_matrix_dimensions_changed)
+        dim_layout.addWidget(self.matrix_rows_spin)
+        
+        dim_layout.addWidget(QLabel("Cols:"))
+        self.matrix_cols_spin = QSpinBox()
+        self.matrix_cols_spin.setMinimum(2)
+        self.matrix_cols_spin.setMaximum(20)
+        self.matrix_cols_spin.setValue(2)
+        self.matrix_cols_spin.setFixedWidth(60)
+        self.matrix_cols_spin.valueChanged.connect(self._on_matrix_dimensions_changed)
+        dim_layout.addWidget(self.matrix_cols_spin)
+        dim_layout.addStretch()
+        custom_layout.addLayout(dim_layout)
+        
+        # Matrix type buttons
+        type_layout = QHBoxLayout()
+        type_label = QLabel("Templates:")
+        type_layout.addWidget(type_label)
+        
+        self.zero_sum_btn = QPushButton("Zero-Sum")
+        self.zero_sum_btn.setMaximumWidth(80)
+        self.zero_sum_btn.clicked.connect(self._make_zero_sum)
+        self.zero_sum_btn.setToolTip("Make matrix skew-symmetric (A = -A^T)")
+        type_layout.addWidget(self.zero_sum_btn)
+        
+        self.diagonal_btn = QPushButton("Diagonal")
+        self.diagonal_btn.setMaximumWidth(80)
+        self.diagonal_btn.clicked.connect(self._make_diagonal)
+        self.diagonal_btn.setToolTip("Keep only diagonal elements")
+        type_layout.addWidget(self.diagonal_btn)
+        
+        self.upper_tri_btn = QPushButton("Upper Δ")
+        self.upper_tri_btn.setMaximumWidth(80)
+        self.upper_tri_btn.clicked.connect(self._make_upper_triangular)
+        self.upper_tri_btn.setToolTip("Keep only upper triangular elements")
+        type_layout.addWidget(self.upper_tri_btn)
+        
+        self.lower_tri_btn = QPushButton("Lower Δ")
+        self.lower_tri_btn.setMaximumWidth(80)
+        self.lower_tri_btn.clicked.connect(self._make_lower_triangular)
+        self.lower_tri_btn.setToolTip("Keep only lower triangular elements")
+        type_layout.addWidget(self.lower_tri_btn)
+        
+        type_layout.addStretch()
+        custom_layout.addLayout(type_layout)
+        
+        # Action buttons
+        action_layout = QHBoxLayout()
+        
+        self.randomize_selected_btn = QPushButton("Randomize Selected")
+        self.randomize_selected_btn.setMaximumWidth(130)
+        self.randomize_selected_btn.clicked.connect(self._randomize_selected_cells)
+        self.randomize_selected_btn.setToolTip("Fill selected cells with random values [-1, 1]")
+        action_layout.addWidget(self.randomize_selected_btn)
+        
+        self.clear_selected_btn = QPushButton("Clear Selected")
+        self.clear_selected_btn.setMaximumWidth(100)
+        self.clear_selected_btn.clicked.connect(self._clear_selected_cells)
+        self.clear_selected_btn.setToolTip("Set selected cells to zero")
+        action_layout.addWidget(self.clear_selected_btn)
+        
+        action_layout.addStretch()
+        custom_layout.addLayout(action_layout)
+        
+        # Matrix table with improved scrolling
+        self.matrix_scroll = QScrollArea()
+        self.matrix_scroll.setWidgetResizable(False)  # Allow table to define its own size
+        self.matrix_scroll.setMinimumHeight(150)
+        self.matrix_scroll.setMaximumHeight(350)  # Increased max height for better visibility
+        self.matrix_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.matrix_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.matrix_scroll.setStyleSheet("""
+            QScrollArea {
+                background-color: #1a1a1a;
+                border: 1px solid #404040;
+            }
+        """)
+        
+        self.matrix_table = QTableWidget(2, 2)
+        self.matrix_table.setHorizontalHeaderLabels([f"C{j}" for j in range(2)])
+        self.matrix_table.setVerticalHeaderLabels([f"R{i}" for i in range(2)])
+        
+        # Set fixed cell size for consistency
+        self.matrix_table.verticalHeader().setDefaultSectionSize(35)
+        self.matrix_table.horizontalHeader().setDefaultSectionSize(70)
+        
+        # Enable better selection behavior
+        self.matrix_table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
+        self.matrix_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)
+        
+        self.matrix_table.setStyleSheet("""
+            QTableWidget {
+                background-color: #1a1a1a;
+                gridline-color: #404040;
+                border: none;
+                selection-background-color: #404060;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                color: #d0d0d0;
+                font-family: 'Consolas', monospace;
+                font-size: 10pt;
+                border: 1px solid #333;
+            }
+            QTableWidget::item:selected {
+                background-color: #505070;
+                color: #ffffff;
+            }
+            QTableWidget::item:focus {
+                background-color: #606080;
+                border: 2px solid #7070a0;
+            }
+            QHeaderView::section {
+                background-color: #252525;
+                color: #b0b0b0;
+                padding: 6px;
+                border: 1px solid #404040;
+                font-size: 9pt;
+                font-weight: bold;
+            }
+            QHeaderView::section:horizontal {
+                border-bottom: 2px solid #505050;
+            }
+            QHeaderView::section:vertical {
+                border-right: 2px solid #505050;
+            }
+        """)
+        
+        # Initialize cells with 0.0
+        for i in range(2):
+            for j in range(2):
+                item = QTableWidgetItem("0.0")
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                item.setFont(QFont("Consolas", 10))
+                self.matrix_table.setItem(i, j, item)
+        
+        # Set table size to fit content
+        self._resize_matrix_table()
+        
+        self.matrix_scroll.setWidget(self.matrix_table)
+        custom_layout.addWidget(self.matrix_scroll)
+        
+        # Info label
+        info_label = QLabel("Tip: Select cells and use buttons above, or double-click to edit values manually")
+        info_label.setStyleSheet("color: #808080; font-size: 8pt; padding: 5px;")
+        info_label.setWordWrap(True)
+        custom_layout.addWidget(info_label)
+        
+        self.custom_matrix_group.setLayout(custom_layout)
+        layout.addWidget(self.custom_matrix_group)
+        
         # Batch size
         layout.addWidget(QLabel("Batch Size:"))
         batch_layout = QHBoxLayout()
@@ -1121,15 +1742,15 @@ class FPAnalyzerGUI(QMainWindow):
         layout.addWidget(QLabel("Iterations:"))
         iter_layout = QHBoxLayout()
         self.iter_slider = QSlider(Qt.Orientation.Horizontal)
-        self.iter_slider.setMinimum(1000)
+        self.iter_slider.setMinimum(1)
         self.iter_slider.setMaximum(100000)
         self.iter_slider.setValue(10000)
         self.iter_slider.setSingleStep(1000)
         iter_layout.addWidget(self.iter_slider)
         self.iter_spin = QSpinBox()
-        self.iter_spin.setMinimum(1000)
+        self.iter_spin.setMinimum(1)
         self.iter_spin.setMaximum(10000000)
-        self.iter_spin.setValue(10000)
+        self.iter_spin.setValue(10)
         self.iter_spin.setSingleStep(1000)
         self.iter_spin.setFixedWidth(80)
         iter_layout.addWidget(self.iter_spin)
@@ -1165,7 +1786,7 @@ class FPAnalyzerGUI(QMainWindow):
         self.seed_spin = QSpinBox()
         self.seed_spin.setMinimum(0)
         self.seed_spin.setMaximum(99999)
-        self.seed_spin.setValue(420)
+        self.seed_spin.setValue(np.random.randint(0, 99999))
         seed_layout.addWidget(self.seed_spin)
         layout.addLayout(seed_layout)
         
@@ -1187,6 +1808,9 @@ class FPAnalyzerGUI(QMainWindow):
         
         # Legend toggle
         layout.addWidget(self.legend_toggle)
+        
+        # Individual games toggle
+        layout.addWidget(self.individual_games_toggle)
         
         # Progress bar
         self.progress_bar = QProgressBar()
@@ -1212,6 +1836,9 @@ class FPAnalyzerGUI(QMainWindow):
         panel = QGroupBox("Strategy Weights")
         panel.setFixedWidth(450)
         layout = QVBoxLayout()
+        
+        # Store reference for toggle access
+        self.weights_panel = panel
         
         # Game selector with export buttons
         game_select_layout = QHBoxLayout()
@@ -1532,16 +2159,12 @@ class FPAnalyzerGUI(QMainWindow):
                 padding: 8px 16px;
                 border-radius: 4px;
                 font-weight: bold;
-                transition: all 0.3s ease;
             }
             QPushButton:hover {
                 background-color: #656565;
-                transform: translateY(-1px);
-                box-shadow: 0 4px 8px rgba(80, 80, 80, 0.5);
             }
             QPushButton:pressed {
                 background-color: #3a3a3a;
-                transform: translateY(0px);
             }
             QPushButton:disabled {
                 background-color: #2e2e32;
@@ -1578,7 +2201,6 @@ class FPAnalyzerGUI(QMainWindow):
                 margin: 2px;
                 border-top-left-radius: 4px;
                 border-top-right-radius: 4px;
-                transition: all 0.2s ease;
             }
             QTabBar::tab:selected {
                 background-color: #505050;
@@ -1593,22 +2215,31 @@ class FPAnalyzerGUI(QMainWindow):
     
     def start_simulation(self):
         """Start the simulation."""
+        # Generate new random seed each time Start is pressed
+        self.seed_spin.setValue(np.random.randint(0, 99999))
+        
         # Get selected game sizes for mixed mode
         selected_sizes = [size for size, checkbox in self.size_checkboxes.items() if checkbox.isChecked()]
         
         # Validate mixed mode has at least one size selected
-        if self.mode_combo.currentIndex() == 2 and not selected_sizes:
+        if self.mode_combo.currentIndex() == 1 and not selected_sizes:
             self.status_text.setPlainText("Error: Please select at least one game size for Mixed Sizes mode.")
             return
         
+        # Get custom matrix if in custom mode
+        custom_matrix = None
+        if self.mode_combo.currentIndex() == 2:
+            custom_matrix = self._get_matrix_values()
+        
         # Get configuration (use spin boxes which have extended ranges)
         config = {
-            'mode': ['wang', 'random', 'mixed'][self.mode_combo.currentIndex()],
+            'mode': ['random', 'mixed', 'custom'][self.mode_combo.currentIndex()],
             'batch': self.batch_spin.value(),
             'iterations': self.iter_spin.value(),
             'chunk': self.chunk_spin.value(),
             'seed': self.seed_spin.value(),
-            'sizes': sorted(selected_sizes) if selected_sizes else [3, 5, 7, 10]
+            'sizes': sorted(selected_sizes) if selected_sizes else [3, 5, 7, 10],
+            'custom_matrix': custom_matrix
         }
         
         # Reset state
@@ -2050,6 +2681,11 @@ class FPAnalyzerGUI(QMainWindow):
             # Only add first game to legend as representative of all games
             name = f"Individual Games (1-{len(self.all_gaps)})" if i == 0 else None
             curve = self.plot_widget.plot(t, gaps, pen=pen, name=name, connect='all', antialias=True)
+            
+            # Apply visibility state based on toggle
+            if not self.individual_games_visible:
+                curve.hide()
+            
             self.game_curves.append((i, curve))  # Store game index with curve
         
         # Update alpha plot with smooth rendering
@@ -2409,7 +3045,11 @@ class FPAnalyzerGUI(QMainWindow):
             
             # Select game if close enough (increased threshold to 0.3 for easier selection)
             if closest_game is not None and min_distance < 0.3:
-                self.select_game(closest_game)
+                # If clicking on the already selected game, deselect it
+                if self.selected_game == closest_game:
+                    self.deselect_game()
+                else:
+                    self.select_game(closest_game)
             else:
                 # Provide feedback if no game was close enough
                 self.status_text.setPlainText(f"Click closer to a game line to select it.\nClosest distance: {min_distance:.3f}")
@@ -2454,12 +3094,17 @@ class FPAnalyzerGUI(QMainWindow):
         # Reset title with fade effect
         self.plot_widget.setTitle("Duality Gap Convergence - Click game line to select")
         
-        # Animate weights panel clear
-        self.weights_text.setPlainText(
-            "No game selected\n\n"
-            "Click on a game line\n"
-            "to view weights"
-        )
+        # Clear weights display by showing placeholder
+        while self.weights_container_layout.count():
+            item = self.weights_container_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        
+        placeholder = QLabel("No game selected\n\nClick on a game line\nto view strategy weights")
+        placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        placeholder.setStyleSheet("color: #888; padding: 30px; font-size: 10pt;")
+        self.weights_container_layout.addWidget(placeholder)
+        self.weights_container_layout.addStretch()
         
         # Reset button style
         self.deselect_btn.setStyleSheet("")
@@ -2474,6 +3119,27 @@ class FPAnalyzerGUI(QMainWindow):
         self.plot_widget.setLogMode(x=self.log_scale, y=self.log_scale)
         self.log_toggle_btn.setText(f"Log Scale: {'ON' if self.log_scale else 'OFF'}")
         self.update_plots()
+    
+    def keyPressEvent(self, event):
+        """Handle keyboard shortcuts."""
+        if event.key() == Qt.Key.Key_R:
+            self._reset_all_graphs()
+        else:
+            super().keyPressEvent(event)
+    
+    def _reset_all_graphs(self):
+        """Reset all graphs to fit their full data range."""
+        if not self.iterations or not self.all_gaps:
+            return
+        
+        # Reset main gap plot
+        self.plot_widget.getViewBox().autoRange()
+        
+        # Reset alpha plot
+        self.alpha_plot.getViewBox().autoRange()
+        
+        # Reset ratio plot
+        self.ratio_plot.getViewBox().autoRange()
     
     def _export_current_game(self):
         """Export current game data for all iterations."""

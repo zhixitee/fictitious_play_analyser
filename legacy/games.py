@@ -34,7 +34,7 @@ class GameFactory:
         return M_aug
 
     @staticmethod
-    def get_random_game(n_rows, m_cols, seed=42):
+    def get_random_game(n_rows, m_cols, seed):
         """Generates a random skew-symmetric zero-sum game."""
         rng = np.random.default_rng(seed)
         if n_rows == m_cols:
