@@ -42,7 +42,7 @@ python cli_app.py --mode mixed --sizes 3,5,7 --iter 5000
 # Export Data (CSV or Markdown)
 python cli_app.py --terminal --export results.csv --save-plots
 ```
-
+![alt text](/img/image.png)
 ---
 
 ## Installation
