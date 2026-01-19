@@ -1,17 +1,17 @@
 """
-PyQt6-based desktop GUI for Fictitious Play Convergence Analyzer.
+PyQt5-based desktop GUI for Fictitious Play Convergence Analyzer.
 Standalone application with modern UI/UX and real-time plotting.
 """
 import sys
 import numpy as np
-from PyQt6.QtWidgets import (
+from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QSlider, QComboBox, QPushButton, QSpinBox, QProgressBar,
     QTextEdit, QGroupBox, QGridLayout, QSplitter, QTabWidget, QGraphicsOpacityEffect,
     QCheckBox, QFrame, QScrollArea, QTableWidget, QTableWidgetItem, QFileDialog, QMessageBox
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QPropertyAnimation, QEasingCurve, QPoint
-from PyQt6.QtGui import QFont, QColor
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QPropertyAnimation, QEasingCurve, QPoint
+from PyQt5.QtGui import QFont, QColor
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
 from src.core.games import GameFactory
@@ -223,7 +223,7 @@ class FPAnalyzerGUI(QMainWindow):
         central_widget.setLayout(main_layout)
         
         # Main horizontal splitter for collapsible side panels
-        main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        main_splitter = QSplitter(Qt.Horizontal)
         main_layout.addWidget(main_splitter)
         
         # Left panel - Controls
@@ -321,7 +321,7 @@ class FPAnalyzerGUI(QMainWindow):
         loading_3d_layout.setContentsMargins(20, 15, 20, 15)
         
         self.loading_3d_spinner_label = QLabel("⠋")
-        self.loading_3d_spinner_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.loading_3d_spinner_label.setAlignment(Qt.AlignCenter)
         self.loading_3d_spinner_label.setStyleSheet("""
             color: #e8e8e8;
             font-size: 32pt;
@@ -330,7 +330,7 @@ class FPAnalyzerGUI(QMainWindow):
         loading_3d_layout.addWidget(self.loading_3d_spinner_label)
         
         self.loading_3d_text = QLabel("Rendering 3D Plot...")
-        self.loading_3d_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.loading_3d_text.setAlignment(Qt.AlignCenter)
         self.loading_3d_text.setStyleSheet("color: #d8d9da; font-size: 10pt;")
         loading_3d_layout.addWidget(self.loading_3d_text)
         
@@ -468,7 +468,7 @@ class FPAnalyzerGUI(QMainWindow):
                 else:
                     value = "0.0"
                 item = QTableWidgetItem(value)
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                item.setTextAlignment(Qt.AlignCenter)
                 item.setFont(QFont("Consolas", 10))
                 self.matrix_table.setItem(i, j, item)
         
@@ -896,7 +896,7 @@ class FPAnalyzerGUI(QMainWindow):
         value_label = QLabel(f"{weight:.4f}")
         value_label.setFixedWidth(50)
         value_label.setStyleSheet("color: #b0b0b0; font-size: 8pt; font-family: 'Consolas', monospace;")
-        value_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        value_label.setAlignment(Qt.AlignRight)
         layout.addWidget(value_label)
         
         return widget
@@ -1016,7 +1016,7 @@ class FPAnalyzerGUI(QMainWindow):
                 border-bottom: 2px solid #404040;
             }
         """)
-        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header.setAlignment(Qt.AlignCenter)
         self.weights_container_layout.addWidget(header)
         
         # Build all sections first, then add in custom order
@@ -1062,7 +1062,7 @@ class FPAnalyzerGUI(QMainWindow):
                 for j in range(m):
                     val = payoff_matrix[i, j]
                     item = QTableWidgetItem(f"{val:.2f}")
-                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    item.setTextAlignment(Qt.AlignCenter)
                     
                     # Minimal color scheme - subtle shading only
                     if val > 0:
@@ -1310,7 +1310,7 @@ class FPAnalyzerGUI(QMainWindow):
                 border-bottom: 2px solid #404040;
             }
         """)
-        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header.setAlignment(Qt.AlignCenter)
         self.weights_container_layout.addWidget(header)
         
         # ═══════════════════════════════════════════════════════════
@@ -1698,7 +1698,7 @@ class FPAnalyzerGUI(QMainWindow):
         for i in range(2):
             for j in range(2):
                 item = QTableWidgetItem("0.0")
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                item.setTextAlignment(Qt.AlignCenter)
                 item.setFont(QFont("Consolas", 10))
                 self.matrix_table.setItem(i, j, item)
         
@@ -1720,7 +1720,7 @@ class FPAnalyzerGUI(QMainWindow):
         # Batch size
         layout.addWidget(QLabel("Batch Size:"))
         batch_layout = QHBoxLayout()
-        self.batch_slider = QSlider(Qt.Orientation.Horizontal)
+        self.batch_slider = QSlider(Qt.Horizontal)
         self.batch_slider.setMinimum(1)
         self.batch_slider.setMaximum(20)
         self.batch_slider.setValue(5)
@@ -1741,7 +1741,7 @@ class FPAnalyzerGUI(QMainWindow):
         # Iterations
         layout.addWidget(QLabel("Iterations:"))
         iter_layout = QHBoxLayout()
-        self.iter_slider = QSlider(Qt.Orientation.Horizontal)
+        self.iter_slider = QSlider(Qt.Horizontal)
         self.iter_slider.setMinimum(1)
         self.iter_slider.setMaximum(100000)
         self.iter_slider.setValue(10000)
@@ -1762,7 +1762,7 @@ class FPAnalyzerGUI(QMainWindow):
         # Chunk size
         layout.addWidget(QLabel("Chunk Size:"))
         chunk_layout = QHBoxLayout()
-        self.chunk_slider = QSlider(Qt.Orientation.Horizontal)
+        self.chunk_slider = QSlider(Qt.Horizontal)
         self.chunk_slider.setMinimum(1)
         self.chunk_slider.setMaximum(500)
         self.chunk_slider.setValue(100)
@@ -1908,7 +1908,7 @@ class FPAnalyzerGUI(QMainWindow):
         iter_control_layout = QHBoxLayout()
         
         # Iteration slider
-        self.iter_select_slider = QSlider(Qt.Orientation.Horizontal)
+        self.iter_select_slider = QSlider(Qt.Horizontal)
         self.iter_select_slider.setMinimum(1)
         self.iter_select_slider.setMaximum(1)
         self.iter_select_slider.setValue(1)
@@ -1962,7 +1962,7 @@ class FPAnalyzerGUI(QMainWindow):
         
         # Placeholder
         placeholder = QLabel("Run simulation to\nview strategy weights")
-        placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        placeholder.setAlignment(Qt.AlignCenter)
         placeholder.setStyleSheet("color: #888; padding: 30px; font-size: 10pt;")
         self.weights_container_layout.addWidget(placeholder)
         self.weights_container_layout.addStretch()
@@ -2006,11 +2006,11 @@ class FPAnalyzerGUI(QMainWindow):
         
         # Layout for loading content
         overlay_layout = QVBoxLayout(self.loading_overlay)
-        overlay_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        overlay_layout.setAlignment(Qt.AlignCenter)
         
         # Spinner label (animated with text)
         self.loading_spinner = QLabel()
-        self.loading_spinner.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.loading_spinner.setAlignment(Qt.AlignCenter)
         self.loading_spinner.setStyleSheet("""
             QLabel {
                 color: #e8e8e8;
@@ -2023,7 +2023,7 @@ class FPAnalyzerGUI(QMainWindow):
         
         # Loading text
         self.loading_text = QLabel("Loading Iteration Data...")
-        self.loading_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.loading_text.setAlignment(Qt.AlignCenter)
         self.loading_text.setStyleSheet("""
             QLabel {
                 color: #d0d0d0;
@@ -2061,11 +2061,11 @@ class FPAnalyzerGUI(QMainWindow):
                 border-radius: 3px;
             }
         """)
-        overlay_layout.addWidget(self.loading_progress, alignment=Qt.AlignmentFlag.AlignCenter)
+        overlay_layout.addWidget(self.loading_progress, alignment=Qt.AlignCenter)
         
         # Stats label
         self.loading_stats = QLabel("")
-        self.loading_stats.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.loading_stats.setAlignment(Qt.AlignCenter)
         self.loading_stats.setStyleSheet("""
             QLabel {
                 color: #909090;
@@ -3101,7 +3101,7 @@ class FPAnalyzerGUI(QMainWindow):
                 item.widget().deleteLater()
         
         placeholder = QLabel("No game selected\n\nClick on a game line\nto view strategy weights")
-        placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        placeholder.setAlignment(Qt.AlignCenter)
         placeholder.setStyleSheet("color: #888; padding: 30px; font-size: 10pt;")
         self.weights_container_layout.addWidget(placeholder)
         self.weights_container_layout.addStretch()

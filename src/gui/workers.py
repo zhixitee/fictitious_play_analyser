@@ -1,6 +1,6 @@
 """Background worker thread for non-blocking simulation execution."""
 import numpy as np
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt5.QtCore import QThread, pyqtSignal
 
 from ..core import FPSolver, GameFactory
 

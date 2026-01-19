@@ -5,7 +5,7 @@ Launch with:
     python gui_app.py
 """
 import sys
-from PyQt6.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication
 
 # Import from modular src structure
 from legacy.gui import FPAnalyzerGUI
@@ -19,7 +19,7 @@ def main():
     window = FPAnalyzerGUI()
     window.show()
     
-    sys.exit(app.exec())
+    sys.exit(app.exec_())
 
 
 if __name__ == '__main__':

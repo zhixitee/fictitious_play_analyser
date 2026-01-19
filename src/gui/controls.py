@@ -1,12 +1,12 @@
 """Control panels for simulation configuration."""
 import numpy as np
-from PyQt6.QtWidgets import (
+from PyQt5.QtWidgets import (
     QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QSlider, QComboBox, 
     QPushButton, QSpinBox, QProgressBar, QTextEdit, QCheckBox, QScrollArea,
     QWidget, QGridLayout, QTableWidget, QTableWidgetItem, QFileDialog, QMessageBox
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QFont
 
 
 class ControlPanel(QGroupBox):
