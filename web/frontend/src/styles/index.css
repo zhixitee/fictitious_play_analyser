@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #0b0c0e;
+  --surface: #161719;
+  --border: #2e2e32;
+  --muted: #707070;
+  --accent: #505050;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background-color: var(--background);
+  color: #d8d9da;
+  margin: 0;
+  padding: 0;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* Input styles */
+input[type="number"],
+select {
+  background-color: #1f1f20;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 12px;
+  color: #d8d9da;
+  outline: none;
+}
+
+input[type="number"]:focus,
+select:focus {
+  border-color: var(--accent);
+}
+
+/* Button styles */
+.btn-primary {
+  @apply bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded transition-colors;
+}
+
+.btn-primary:disabled {
+  @apply bg-gray-800 text-gray-500 cursor-not-allowed;
+}
+
+.btn-danger {
+  @apply bg-red-700 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition-colors;
+}
+
+/* Card styles */
+.card {
+  @apply bg-surface border border-border rounded-lg p-4;
+}
+
+/* Progress bar */
+.progress-bar {
+  @apply w-full h-5 bg-gray-800 rounded overflow-hidden;
+}
+
+.progress-bar-fill {
+  @apply h-full bg-gradient-to-r from-gray-600 via-gray-500 to-gray-400 transition-all duration-300;
+}
+
+/* Tooltip */
+.tooltip {
+  @apply invisible absolute bg-gray-800 text-white text-xs rounded py-1 px-2 z-50;
+}
+
+.has-tooltip:hover .tooltip {
+  @apply visible;
+}
+
+/* Chart container */
+.chart-container {
+  @apply w-full h-[400px] bg-surface rounded-lg p-4;
+}
