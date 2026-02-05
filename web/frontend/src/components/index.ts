@@ -1,5 +1,12 @@
+// New browser-based components
+export { ControlsPanel } from './ControlsPanel';
+export type { ControlsConfig, PlotMode } from './ControlsPanel';
+export { PlotPanel } from './PlotPanel';
+export { MatrixEditor } from './MatrixEditorNew';
+export { StatusPanel } from './StatusPanel';
+
+// Legacy components (for reference, can be removed)
 export { ControlPanel } from './ControlPanel';
 export { ProgressDisplay } from './ProgressDisplay';
 export { GapChart } from './GapChart';
-export { MatrixEditor } from './MatrixEditor';
 export { StrategyWeightsPanel } from './StrategyWeightsPanel';

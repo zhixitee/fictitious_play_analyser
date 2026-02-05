@@ -39,6 +39,7 @@ body {
 
 /* Input styles */
 input[type="number"],
+input[type="text"],
 select {
   background-color: #1f1f20;
   border: 1px solid var(--border);
@@ -49,8 +50,51 @@ select {
 }
 
 input[type="number"]:focus,
+input[type="text"]:focus,
 select:focus {
   border-color: var(--accent);
+}
+
+input[type="number"]:disabled,
+input[type="text"]:disabled,
+select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Range input */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-track {
+  background: #2e2e32;
+  height: 4px;
+  border-radius: 2px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  background: #707070;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  margin-top: -5px;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  background: #909090;
+}
+
+/* Checkbox */
+input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #505050;
 }
 
 /* Button styles */
@@ -59,7 +103,7 @@ select:focus {
 }
 
 .btn-primary:disabled {
-  @apply bg-gray-800 text-gray-500 cursor-not-allowed;
+  @apply bg-gray-800 text-gray-500 cursor-not-allowed hover:bg-gray-800;
 }
 
 .btn-danger {
@@ -91,5 +135,20 @@ select:focus {
 
 /* Chart container */
 .chart-container {
-  @apply w-full h-[400px] bg-surface rounded-lg p-4;
+  @apply w-full bg-surface rounded-lg p-4;
+  min-height: 400px;
+}
+
+/* Animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
