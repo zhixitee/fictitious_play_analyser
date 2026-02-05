@@ -136,7 +136,22 @@ input[type="checkbox"] {
 /* Chart container */
 .chart-container {
   @apply w-full bg-surface rounded-lg p-4;
-  min-height: 400px;
+  min-height: 200px;
+}
+
+/* Resizable panels */
+[data-panel-group-direction="horizontal"] > [data-panel-resize-handle-id] {
+  width: 6px;
+}
+
+[data-panel-group-direction="vertical"] > [data-panel-resize-handle-id] {
+  height: 6px;
+}
+
+/* Full height app */
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
 }
 
 /* Animation */

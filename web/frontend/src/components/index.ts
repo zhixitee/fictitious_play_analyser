@@ -4,6 +4,7 @@ export type { ControlsConfig, PlotMode } from './ControlsPanel';
 export { PlotPanel } from './PlotPanel';
 export { MatrixEditor } from './MatrixEditorNew';
 export { StatusPanel } from './StatusPanel';
+export { IterationExplorer } from './IterationExplorer';
 
 // Legacy components (for reference, can be removed)
 export { ControlPanel } from './ControlPanel';
