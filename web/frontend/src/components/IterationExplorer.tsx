@@ -138,9 +138,35 @@ export function IterationExplorer({
     return state.matrices[explorerGameIndex] || null;
   }, [explorerGameIndex, hasData, state.matrices]);
   
-  // Get strategies at current iteration (estimated from accumulated gaps pattern)
-  // Note: Full strategy history would need worker modification
-  // For now, show matrix when a game is selected
+  // Get strategies at current iteration for selected game
+  // Strategies are stored per chunk, so find the chunk that corresponds to the current iteration index
+  const currentStrategies = useMemo(() => {
+    if (explorerGameIndex === -1 || !hasData) return null;
+    
+    const rowStrats = state.rowStrategies?.[explorerGameIndex];
+    const colStrats = state.colStrategies?.[explorerGameIndex];
+    
+    if (!rowStrats || !colStrats || rowStrats.length === 0) return null;
+    
+    // The strategies array has one entry per chunk
+    // We need to map the selectedIterationIndex to a chunk index
+    // If chunk size is C and we have N iterations total, chunk index = floor(iterationIndex / C)
+    // But since we don't know chunk size here, we can approximate:
+    // strategies.length chunks for iterations.length iterations
+    const totalIterations = state.iterations.length;
+    const numChunks = rowStrats.length;
+    
+    // Map iteration index to chunk index
+    const chunkIndex = Math.min(
+      Math.floor((selectedIterationIndex / totalIterations) * numChunks),
+      numChunks - 1
+    );
+    
+    return {
+      row: rowStrats[chunkIndex] || [],
+      col: colStrats[chunkIndex] || [],
+    };
+  }, [explorerGameIndex, hasData, selectedIterationIndex, state.rowStrategies, state.colStrategies, state.iterations.length]);
   
   // Export handlers
   const handleExportCSV = () => {
@@ -234,6 +260,43 @@ export function IterationExplorer({
             
             <span className="text-muted">Wang Bound (1/T^⅓):</span>
             <span className="font-mono text-gray-300">{metrics.wangBound.toExponential(4)}</span>
+          </div>
+        </CollapsibleSection>
+      )}
+
+      {/* Strategy Probabilities (when specific game selected) */}
+      {currentStrategies && (
+        <CollapsibleSection title={`Strategy Probabilities`} defaultOpen={true}>
+          <div className="space-y-3">
+            {/* Row Player Strategies */}
+            <div>
+              <h4 className="text-xs font-semibold text-gray-400 mb-1.5">Row Player (p)</h4>
+              <div className="space-y-0.5">
+                {currentStrategies.row.map((weight, i) => (
+                  <StrategyBar 
+                    key={i} 
+                    index={i} 
+                    weight={weight} 
+                    color={GAME_COLORS[explorerGameIndex % GAME_COLORS.length]} 
+                  />
+                ))}
+              </div>
+            </div>
+            
+            {/* Column Player Strategies */}
+            <div>
+              <h4 className="text-xs font-semibold text-gray-400 mb-1.5">Column Player (q)</h4>
+              <div className="space-y-0.5">
+                {currentStrategies.col.map((weight, j) => (
+                  <StrategyBar 
+                    key={j} 
+                    index={j} 
+                    weight={weight} 
+                    color={GAME_COLORS[(explorerGameIndex + 1) % GAME_COLORS.length]} 
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         </CollapsibleSection>
       )}

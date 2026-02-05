@@ -316,8 +316,14 @@ export function PlotPanel({
             </label>
           ))}
           <button
-            onClick={() => handleVisibleChange(Array(gameCount).fill(true))}
+            onClick={() => handleVisibleChange(Array(gameCount).fill(false))}
             className="ml-auto text-xs px-2 py-0.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300"
+          >
+            Collapse
+          </button>
+          <button
+            onClick={() => handleVisibleChange(Array(gameCount).fill(true))}
+            className="text-xs px-2 py-0.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300"
           >
             Show All
           </button>
@@ -424,9 +430,9 @@ export function PlotPanel({
       </div>
 
       {/* Bottom charts - side by side */}
-      <div className="flex gap-4">
+      <div className="flex gap-4 justify-center">
         {/* Convergence Rate (α) Chart */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 max-w-[50%]">
           <div className="text-xs font-medium text-gray-400 mb-1 px-2">
             Convergence Rate (α)
           </div>
@@ -523,7 +529,7 @@ export function PlotPanel({
         </div>
 
         {/* Gap / Karlin Bound Ratio Chart */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 max-w-[50%]">
           <div className="text-xs font-medium text-gray-400 mb-1 px-2">
             Gap / Karlin Bound Ratio
           </div>

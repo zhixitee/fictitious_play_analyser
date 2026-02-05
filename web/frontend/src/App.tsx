@@ -150,7 +150,7 @@ function App() {
       <main className="px-4 py-4">
         <div className="flex gap-4">
           {/* Left Panel - Controls */}
-          <div className="w-72 flex-shrink-0">
+          <div className={`flex-shrink-0 ${config.mode === 'custom' ? 'w-96' : 'w-72'}`}>
             <div className="sticky top-4">
               <ControlsPanel
                 config={config}

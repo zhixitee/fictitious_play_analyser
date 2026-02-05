@@ -47,7 +47,9 @@ interface ControlsPanelProps {
 }
 
 const SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10];
-const MAX_ITERATIONS = 10000;
+const MAX_ITERATIONS = 1000000;
+const MAX_CHUNK_SIZE = 10000;
+const MAX_BATCH_SIZE = 100;
 
 export function ControlsPanel({
   config,
@@ -160,12 +162,12 @@ export function ControlsPanel({
           value={config.batchSize}
           onChange={(e) =>
             onConfigChange({
-              batchSize: Math.max(1, Math.min(10, parseInt(e.target.value) || 1)),
+              batchSize: Math.max(1, Math.min(MAX_BATCH_SIZE, parseInt(e.target.value) || 1)),
             })
           }
           disabled={isRunning || config.mode === "wang" || config.mode === "custom"}
           min={1}
-          max={10}
+          max={MAX_BATCH_SIZE}
           className="w-full"
         />
         {(config.mode === "wang" || config.mode === "custom") && (
@@ -210,13 +212,13 @@ export function ControlsPanel({
           value={config.chunkSize}
           onChange={(e) =>
             onConfigChange({
-              chunkSize: Math.max(10, Math.min(500, parseInt(e.target.value) || 100)),
+              chunkSize: Math.max(1, Math.min(MAX_CHUNK_SIZE, parseInt(e.target.value) || 100)),
             })
           }
           disabled={isRunning}
-          min={10}
-          max={500}
-          step={10}
+          min={1}
+          max={MAX_CHUNK_SIZE}
+          step={100}
           className="w-full"
         />
       </div>

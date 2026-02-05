@@ -31,6 +31,8 @@ export interface SimulationState {
   error: string | null;
   logs: string[];
   seed: number | null;
+  rowStrategies: number[][][];  // [game][chunkIdx][action]
+  colStrategies: number[][][];  // [game][chunkIdx][action]
 }
 
 const initialState: SimulationState = {
@@ -46,6 +48,8 @@ const initialState: SimulationState = {
   error: null,
   logs: [],
   seed: null,
+  rowStrategies: [],
+  colStrategies: [],
 };
 
 interface UseWorkerSimulationReturn {
@@ -98,6 +102,8 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
             progress: msg.progress,
             avgGap: msg.avgGap,
             seed: msg.seed,
+            rowStrategies: msg.rowStrategies,
+            colStrategies: msg.colStrategies,
           }));
           break;
 
@@ -112,6 +118,8 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
             summary: msg.summary,
             progress: 100,
             seed: msg.seed,
+            rowStrategies: msg.rowStrategies,
+            colStrategies: msg.colStrategies,
           }));
           addLog(
             `Completed: ${msg.summary.totalIterations.toLocaleString()} iterations, ` +

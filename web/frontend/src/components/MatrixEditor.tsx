@@ -132,9 +132,9 @@ export function MatrixEditor({
         <table className="border-collapse">
           <thead>
             <tr>
-              <th className="w-8"></th>
+              <th className="w-10"></th>
               {Array.from({ length: cols }, (_, j) => (
-                <th key={j} className="text-xs text-muted px-1 pb-1">
+                <th key={j} className="text-xs text-muted px-1 pb-1 text-center">
                   C{j}
                 </th>
               ))}
@@ -143,7 +143,7 @@ export function MatrixEditor({
           <tbody>
             {matrix.map((row, i) => (
               <tr key={i}>
-                <td className="text-xs text-muted pr-1">R{i}</td>
+                <td className="text-xs text-muted pr-2 text-right">R{i}</td>
                 {row.map((val, j) => (
                   <td key={j} className="p-0.5">
                     <input
@@ -154,7 +154,7 @@ export function MatrixEditor({
                       }
                       disabled={disabled}
                       step="0.1"
-                      className="w-14 text-center text-xs p-1"
+                      className="w-16 text-center text-sm p-1.5 font-mono"
                     />
                   </td>
                 ))}

@@ -50,6 +50,8 @@ export interface WorkerUpdateMessage {
   avgGap: number;
   progress: number;
   seed: number;
+  rowStrategies: number[][][];  // [game][iterIdx][action]
+  colStrategies: number[][][];  // [game][iterIdx][action]
 }
 
 export interface WorkerDoneMessage {
@@ -60,6 +62,8 @@ export interface WorkerDoneMessage {
   avgGaps: number[];
   matrices: Matrix[];
   seed: number;
+  rowStrategies: number[][][];  // [game][iterIdx][action]
+  colStrategies: number[][][];  // [game][iterIdx][action]
 }
 
 export interface WorkerErrorMessage {
@@ -154,6 +158,8 @@ function runSimulation(cfg: SimConfig) {
     const allIters: number[] = [];
     const allGaps: number[][] = matrices.map(() => []);
     const avgGaps: number[] = [];
+    const rowStrategies: number[][][] = matrices.map(() => []);  // [game][iterIdx][action]
+    const colStrategies: number[][][] = matrices.map(() => []);  // [game][iterIdx][action]
 
     let current = 0;
     let lastUpdateTime = startTime;
@@ -164,7 +170,7 @@ function runSimulation(cfg: SimConfig) {
 
       // Run chunk for all games
       for (let i = 0; i < solvers.length; i++) {
-        const { iters, gaps } = stepChunk(solvers[i], step);
+        const { iters, gaps, finalRowStrategy, finalColStrategy } = stepChunk(solvers[i], step);
         
         // Only push iteration numbers once (same for all games)
         if (i === 0) {
@@ -177,6 +183,10 @@ function runSimulation(cfg: SimConfig) {
         for (let k = 0; k < gaps.length; k++) {
           allGaps[i].push(gaps[k]);
         }
+        
+        // Store final strategy for this chunk (one per chunk, not per iteration)
+        rowStrategies[i].push(Array.from(finalRowStrategy));
+        colStrategies[i].push(Array.from(finalColStrategy));
       }
 
       // Compute average gaps for each iteration in this chunk
@@ -208,6 +218,8 @@ function runSimulation(cfg: SimConfig) {
           avgGap,
           progress: (current / totalIter) * 100,
           seed,
+          rowStrategies,
+          colStrategies,
         } satisfies WorkerUpdateMessage);
       }
     }
@@ -225,6 +237,8 @@ function runSimulation(cfg: SimConfig) {
       avgGaps,
       matrices,
       seed,
+      rowStrategies,
+      colStrategies,
     } satisfies WorkerDoneMessage);
     
   } catch (error) {
