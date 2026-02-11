@@ -33,6 +33,8 @@ export interface SimulationState {
   seed: number | null;
   rowStrategies: number[][][];  // [game][chunkIdx][action]
   colStrategies: number[][][];  // [game][chunkIdx][action]
+  bestRowHistory: number[][];   // [game][iterIdx]
+  bestColHistory: number[][];   // [game][iterIdx]
 }
 
 const initialState: SimulationState = {
@@ -50,6 +52,8 @@ const initialState: SimulationState = {
   seed: null,
   rowStrategies: [],
   colStrategies: [],
+  bestRowHistory: [],
+  bestColHistory: [],
 };
 
 interface UseWorkerSimulationReturn {
@@ -104,6 +108,8 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
             seed: msg.seed,
             rowStrategies: msg.rowStrategies,
             colStrategies: msg.colStrategies,
+            bestRowHistory: msg.bestRowHistory,
+            bestColHistory: msg.bestColHistory,
           }));
           break;
 
@@ -120,6 +126,8 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
             seed: msg.seed,
             rowStrategies: msg.rowStrategies,
             colStrategies: msg.colStrategies,
+            bestRowHistory: msg.bestRowHistory,
+            bestColHistory: msg.bestColHistory,
           }));
           addLog(
             `Completed: ${msg.summary.totalIterations.toLocaleString()} iterations, ` +
@@ -189,6 +197,8 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
         sizeN: config.sizeN,
         seed: config.seed ?? undefined,
         customMatrix: config.mode === "custom" ? config.customMatrix : undefined,
+        tieBreaking: config.tieBreaking,
+        initialization: config.initialization,
       };
 
       addLog(`Starting simulation: ${config.mode} mode`);

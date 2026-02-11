@@ -32,6 +32,8 @@ const defaultConfig: ControlsConfig = {
   customMatrix: getRPSGame(),
   logScale: true,
   showLegend: true,
+  tieBreaking: "lexicographic",
+  initialization: "standard",
 };
 
 function App() {
@@ -193,6 +195,9 @@ function App() {
                   visibleGames={visibleGames}
                   onVisibleGamesChange={setVisibleGames}
                   selectedIterationIndex={selectedIterationIndex}
+                  bestRowHistory={state.bestRowHistory}
+                  bestColHistory={state.bestColHistory}
+                  matrices={state.matrices}
                 />
               </div>
             </div>

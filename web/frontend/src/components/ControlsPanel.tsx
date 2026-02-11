@@ -13,6 +13,7 @@
 import React, { useState } from "react";
 import { Play, Square, RotateCcw, Dice5 } from "lucide-react";
 import type { SimMode } from "../workers/sim.worker";
+import type { TieBreakingRule, InitializationMode } from "../types/simulation";
 
 export interface ControlsConfig {
   mode: SimMode;
@@ -25,6 +26,8 @@ export interface ControlsConfig {
   customMatrix: number[][];
   logScale: boolean;
   showLegend: boolean;
+  tieBreaking: TieBreakingRule;
+  initialization: InitializationMode;
 }
 
 interface ControlsPanelProps {
@@ -282,6 +285,38 @@ export function ControlsPanel({
           />
           <span className="text-sm text-gray-300">Show Legend</span>
         </label>
+      </div>
+
+      {/* Solver Settings */}
+      <div className="space-y-2 pt-2 border-t border-border">
+        <label className="block text-sm text-muted">Solver Settings</label>
+
+        <div className="space-y-1">
+          <label className="block text-xs text-muted">Tie Breaking</label>
+          <select
+            value={config.tieBreaking}
+            onChange={(e) => onConfigChange({ tieBreaking: e.target.value as TieBreakingRule })}
+            disabled={isRunning}
+            className="w-full"
+          >
+            <option value="lexicographic">Lexicographic (lowest index)</option>
+            <option value="random">Random (uniform over ties)</option>
+            <option value="anti-lexicographic">Anti-Lexicographic (highest index)</option>
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="block text-xs text-muted">Initialization</label>
+          <select
+            value={config.initialization}
+            onChange={(e) => onConfigChange({ initialization: e.target.value as InitializationMode })}
+            disabled={isRunning}
+            className="w-full"
+          >
+            <option value="standard">Standard [1, 0, ..., 0]</option>
+            <option value="random">Random Beliefs</option>
+          </select>
+        </div>
       </div>
 
       {/* Control Buttons */}

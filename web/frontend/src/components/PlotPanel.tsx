@@ -21,7 +21,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-
+import { BestResponseChart } from "./BestResponseChart";
 
 // Color palette for games
 const GAME_COLORS = [
@@ -47,6 +47,9 @@ interface PlotPanelProps {
   visibleGames?: boolean[];
   onVisibleGamesChange?: (visibleGames: boolean[]) => void;
   selectedIterationIndex?: number;
+  bestRowHistory?: number[][];  // [game][iterIdx]
+  bestColHistory?: number[][];  // [game][iterIdx]
+  matrices?: number[][][];      // [game][row][col] for matrix size
 }
 
 interface ChartDataPoint {
@@ -65,6 +68,9 @@ export function PlotPanel({
   visibleGames,
   onVisibleGamesChange,
   selectedIterationIndex = 0,
+  bestRowHistory,
+  bestColHistory,
+  matrices,
 }: PlotPanelProps) {
   const selectedGame = explorerGameIndex >= 0 ? explorerGameIndex : null;
   const gameCount = allGaps.length;
@@ -614,6 +620,30 @@ export function PlotPanel({
           </div>
         </div>
       </div>
+
+      {/* Best Response Dynamics Chart */}
+      {bestRowHistory && bestColHistory && bestRowHistory.length > 0 && (() => {
+        // Determine which game to show (selected game or first game)
+        const brGameIdx = selectedGame !== null ? selectedGame : 0;
+        const brRow = bestRowHistory[brGameIdx];
+        const brCol = bestColHistory[brGameIdx];
+        const matSize = matrices?.[brGameIdx]?.length ?? 3;
+        const label = selectedGame !== null
+          ? `Game ${selectedGame + 1}`
+          : gameCount === 1 ? "Game 1" : `Game 1 (of ${gameCount})`;
+        if (!brRow || !brCol) return null;
+        return (
+          <BestResponseChart
+            iterations={iterations}
+            bestRowHistory={brRow}
+            bestColHistory={brCol}
+            matrixSize={matSize}
+            selectedIterationIndex={selectedIterationIndex}
+            logScale={logScale}
+            gameLabel={label}
+          />
+        );
+      })()}
     </div>
   );
 }
