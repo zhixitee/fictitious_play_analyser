@@ -87,7 +87,7 @@ export function ControlsPanel({
   };
 
   return (
-    <div className="card w-80 flex-shrink-0 space-y-4 h-full overflow-y-auto">
+    <div className="card w-80 flex-shrink-0 space-y-4">
       <h2 className="text-lg font-bold text-gray-200 border-b border-border pb-2">
         Simulation Controls
       </h2>

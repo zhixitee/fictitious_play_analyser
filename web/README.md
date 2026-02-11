@@ -51,7 +51,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173 in your browser.
+Open http://localhost:8888 in your browser.
 
 ### Docker Compose
 
@@ -131,7 +131,7 @@ The client accumulates `chunk_gaps` into arrays for each game, avoiding full dat
 | `FP_HOST` | `0.0.0.0` | Server host |
 | `FP_PORT` | `8000` | Server port |
 | `FP_DEBUG` | `false` | Debug mode |
-| `FP_CORS_ORIGINS` | `["http://localhost:5173"]` | Allowed origins |
+| `FP_CORS_ORIGINS` | `["http://localhost:8888"]` | Allowed origins |
 | `FP_MAX_ITERATIONS` | `100000` | Max iterations limit |
 | `FP_MAX_BATCH_SIZE` | `10` | Max games per job |
 | `FP_MAX_CONCURRENT_JOBS` | `3` | Concurrent job limit |

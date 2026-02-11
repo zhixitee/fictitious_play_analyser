@@ -26,7 +26,7 @@ const defaultConfig: ControlsConfig = {
   batchSize: 3,
   iterations: 10000,
   chunkSize: 100,
-  seed: null,
+  seed: Math.floor(Math.random() * 100000),
   sizeN: 3,
   sizes: [3, 5, 7],
   customMatrix: getRPSGame(),
@@ -60,6 +60,15 @@ function App() {
     }
   }, [gameCount, visibleGames.length]);
 
+  // Sync visible games when explorer game selection changes
+  React.useEffect(() => {
+    if (explorerGameIndex === -1) {
+      setVisibleGames(Array(gameCount).fill(true));
+    } else {
+      setVisibleGames(Array(gameCount).fill(false).map((_, i) => i === explorerGameIndex));
+    }
+  }, [explorerGameIndex, gameCount]);
+
   // Update selected iteration when simulation progresses
   React.useEffect(() => {
     if (state.iterations.length > 0) {
@@ -82,7 +91,13 @@ function App() {
   const handleStart = useCallback(() => {
     setSelectedIterationIndex(0);
     setExplorerGameIndex(-1);
-    start(config);
+    if (config.seed !== null) {
+      const newSeed = Math.floor(Math.random() * 100000);
+      setConfig((prev) => ({ ...prev, seed: newSeed }));
+      start({ ...config, seed: newSeed });
+    } else {
+      start(config);
+    }
   }, [start, config]);
 
   return (
@@ -145,8 +160,8 @@ function App() {
       <main className="flex-1 min-h-0 px-4 py-4">
         <div className="flex gap-4 h-full">
           {/* Left Panel - Controls */}
-          <div className="flex-shrink-0 h-full flex flex-col gap-4">
-            <div className="flex-1 min-h-0">
+          <div className="flex-shrink-0 h-full overflow-y-auto">
+            <div className="flex flex-col gap-4">
               <ControlsPanel
                 config={config}
                 onConfigChange={handleConfigChange}
@@ -161,21 +176,21 @@ function App() {
                 error={state.error ?? undefined}
                 gameCount={gameCount}
               />
-            </div>
 
-            {/* Matrix Editor (for custom mode) */}
-            {config.mode === "custom" && (
-              <div className="card w-80 flex-shrink-0">
-                <h3 className="text-sm font-bold text-gray-300 mb-3">
-                  Custom Matrix
-                </h3>
-                <MatrixEditor
-                  matrix={config.customMatrix}
-                  onChange={(matrix) => handleConfigChange({ customMatrix: matrix })}
-                  disabled={isRunning}
-                />
-              </div>
-            )}
+              {/* Matrix Editor (for custom mode) */}
+              {config.mode === "custom" && (
+                <div className="card w-80 flex-shrink-0">
+                  <h3 className="text-sm font-bold text-gray-300 mb-3">
+                    Custom Matrix
+                  </h3>
+                  <MatrixEditor
+                    matrix={config.customMatrix}
+                    onChange={(matrix) => handleConfigChange({ customMatrix: matrix })}
+                    disabled={isRunning}
+                  />
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Center Panel - Charts */}
@@ -204,7 +219,7 @@ function App() {
           </div>
 
           {/* Right Panel - Iteration Explorer */}
-          <div className="flex-shrink-0 h-full">
+          <div className="flex-shrink-0 h-full overflow-y-auto">
             <IterationExplorer
               state={state}
               selectedIterationIndex={selectedIterationIndex}

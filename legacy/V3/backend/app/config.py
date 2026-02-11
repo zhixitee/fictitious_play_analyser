@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     debug: bool = False
     
     # CORS
-    cors_origins: List[str] = ["http://localhost:5173", "http://localhost:3000"]
+    cors_origins: List[str] = ["http://localhost:8888"]
     
     # Simulation limits (proof-of-concept constraints)
     max_iterations: int = 100_000

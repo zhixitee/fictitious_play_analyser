@@ -1,15 +1,24 @@
 /**
  * Plot Panel Component
  * 
- * Recharts-based visualizations for convergence analysis:
- * - Main Duality Gap chart (large)
- * - Convergence Rate (alpha) chart (side-by-side with ratio)
- * - Gap / Karlin Bound Ratio chart (side-by-side with alpha)
- * - Vertical reference line synced to selected iteration
- * - Checkbox-based game visibility
+ * Interactive, zoomable Recharts visualizations for convergence analysis.
+ * All four charts share a synchronized X-axis domain via useChartZoom.
+ *
+ * Charts:
+ *  1. Duality Gap (main, large)
+ *  2. Convergence Rate (alpha)   – side-by-side
+ *  3. Gap / Karlin Bound Ratio   – side-by-side
+ *  4. Best Response Dynamics      – bottom
+ *
+ * Features:
+ *  - Click-and-drag brush-to-zoom (ReferenceArea)
+ *  - Synchronized X-axis across all charts
+ *  - Smart downsampling (max ~1 000 points per chart)
+ *  - "Reset Zoom" button per chart
+ *  - Hex.tech dark-mode aesthetic (monospace ticks, subtle grid, snappy tooltips)
  */
 
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import {
   LineChart,
   Line,
@@ -20,8 +29,17 @@ import {
   Legend,
   ResponsiveContainer,
   ReferenceLine,
+  ReferenceArea,
 } from "recharts";
 import { BestResponseChart } from "./BestResponseChart";
+import {
+  useChartZoom,
+  downsampleData,
+  niceIterationTicks,
+  formatIterationTick,
+} from "./charts";
+import type { Domain } from "./charts";
+import { ZoomableChart } from "./charts";
 
 // Color palette for games
 const GAME_COLORS = [
@@ -90,15 +108,68 @@ export function PlotPanel({
   // Get selected iteration value for reference line
   const selectedIterationValue = iterations[selectedIterationIndex] || 0;
 
-  // Build main chart data (Duality Gap)
-  const chartData = useMemo(() => {
+  // ── Synchronized zoom state ──────────────────────────────────────────────
+  const [zoom, zoomActions] = useChartZoom();
+
+  // Reset zoom when a new simulation starts (iterations reset)
+  const prevIterLen = useRef(iterations.length);
+  useEffect(() => {
+    if (iterations.length < prevIterLen.current) {
+      zoomActions.resetZoom();
+    }
+    prevIterLen.current = iterations.length;
+  }, [iterations.length, zoomActions]);
+
+  // Brush-to-zoom interaction state (shared across all charts)
+  const [brushStart, setBrushStart] = useState<string | number | null>(null);
+  const [brushEnd, setBrushEnd] = useState<string | number | null>(null);
+
+  const handleMouseDown = useCallback((e: any) => {
+    if (e && e.activeLabel != null) {
+      setBrushStart(e.activeLabel);
+      setBrushEnd(null);
+    }
+  }, []);
+
+  const handleMouseMove = useCallback((e: any) => {
+    if (brushStart != null && e && e.activeLabel != null) {
+      setBrushEnd(e.activeLabel);
+    }
+  }, [brushStart]);
+
+  const handleMouseUp = useCallback(() => {
+    if (brushStart != null && brushEnd != null) {
+      const lo = Math.min(Number(brushStart), Number(brushEnd));
+      const hi = Math.max(Number(brushStart), Number(brushEnd));
+      if (hi > lo) {
+        zoomActions.setDomain([lo, hi]);
+      }
+    }
+    setBrushStart(null);
+    setBrushEnd(null);
+  }, [brushStart, brushEnd, zoomActions]);
+
+  const fullMax = iterations.length > 0 ? iterations[iterations.length - 1] : 1;
+  const fullDomain: [number, number] = [iterations[0] || 0, fullMax];
+
+  // X-axis domain for all charts
+  const xDomain: [number | string, number | string] = zoom.domain
+    ? [zoom.domain[0], zoom.domain[1]]
+    : logScale ? ["auto", "auto"] : [0, "auto"];
+
+  // Smart ticks
+  const xTicks = useMemo(
+    () => niceIterationTicks(zoom.domain, fullMax),
+    [zoom.domain, fullMax],
+  );
+
+  // Build main chart data (Duality Gap) – full dataset, then downsample
+  const chartDataFull = useMemo(() => {
     if (iterations.length === 0) return [];
 
-    const maxPoints = 500;
-    const step = Math.max(1, Math.floor(iterations.length / maxPoints));
     const data: ChartDataPoint[] = [];
 
-    for (let idx = 0; idx < iterations.length; idx += step) {
+    for (let idx = 0; idx < iterations.length; idx++) {
       const iter = iterations[idx];
       if (iter <= 0) continue;
       
@@ -117,38 +188,23 @@ export function PlotPanel({
       data.push(point);
     }
 
-    // Include last point
-    const lastIdx = iterations.length - 1;
-    if (lastIdx > 0 && lastIdx % step !== 0) {
-      const iter = iterations[lastIdx];
-      if (iter > 0) {
-        const point: ChartDataPoint = { iteration: iter, iterationIndex: lastIdx };
-        for (let g = 0; g < gameCount; g++) {
-          const gap = allGaps[g]?.[lastIdx] ?? 0;
-          point[`game${g + 1}`] = Math.max(gap, 1e-10);
-        }
-        const avg = avgGaps[lastIdx] ?? 0;
-        point.average = Math.max(avg, 1e-10);
-        point.karlin = 1 / Math.sqrt(iter);
-        point.wang = 1 / Math.pow(iter, 1/3);
-        data.push(point);
-      }
-    }
-
     return data;
   }, [iterations, allGaps, avgGaps, gameCount]);
 
+  // Downsampled view for the gap chart
+  const chartData = useMemo(
+    () => downsampleData(chartDataFull, zoom.domain, 1000),
+    [chartDataFull, zoom.domain],
+  );
+
   // Build convergence rate (alpha) data
-  const convergenceRateData = useMemo(() => {
+  const convergenceRateDataFull = useMemo(() => {
     if (iterations.length < 20) return [];
 
-    const maxPoints = 200;
-    const step = Math.max(1, Math.floor(iterations.length / maxPoints));
     const windowSize = Math.max(5, Math.floor(iterations.length / 50));
-
     const data: ChartDataPoint[] = [];
 
-    for (let idx = windowSize; idx < iterations.length; idx += step) {
+    for (let idx = windowSize; idx < iterations.length; idx++) {
       const iter = iterations[idx];
       if (iter <= 0) continue;
 
@@ -189,15 +245,18 @@ export function PlotPanel({
     return data;
   }, [iterations, allGaps, gameCount, effectiveVisibleGames]);
 
+  const convergenceRateData = useMemo(
+    () => downsampleData(convergenceRateDataFull, zoom.domain, 500),
+    [convergenceRateDataFull, zoom.domain],
+  );
+
   // Build Gap / Karlin Bound ratio data
-  const ratioData = useMemo(() => {
+  const ratioDataFull = useMemo(() => {
     if (iterations.length === 0) return [];
 
-    const maxPoints = 200;
-    const step = Math.max(1, Math.floor(iterations.length / maxPoints));
     const data: ChartDataPoint[] = [];
 
-    for (let idx = 0; idx < iterations.length; idx += step) {
+    for (let idx = 0; idx < iterations.length; idx++) {
       const iter = iterations[idx];
       if (iter <= 0) continue;
 
@@ -215,25 +274,13 @@ export function PlotPanel({
       data.push(point);
     }
 
-    // Include last point
-    const lastIdx = iterations.length - 1;
-    if (lastIdx > 0 && lastIdx % step !== 0) {
-      const iter = iterations[lastIdx];
-      if (iter > 0) {
-        const karlinBound = 1 / Math.sqrt(iter);
-        const point: ChartDataPoint = { iteration: iter, iterationIndex: lastIdx };
-        for (let g = 0; g < gameCount; g++) {
-          const gap = allGaps[g]?.[lastIdx] ?? 0;
-          point[`game${g + 1}`] = gap / karlinBound;
-        }
-        const avg = avgGaps[lastIdx] ?? 0;
-        point.average = avg / karlinBound;
-        data.push(point);
-      }
-    }
-
     return data;
   }, [iterations, allGaps, avgGaps, gameCount]);
+
+  const ratioData = useMemo(
+    () => downsampleData(ratioDataFull, zoom.domain, 500),
+    [ratioDataFull, zoom.domain],
+  );
 
   // Toggle game visibility
   const toggleGameVisibility = (gameIndex: number) => {
@@ -282,14 +329,49 @@ export function PlotPanel({
   const showIndividual = true;
   const showAverage = explorerGameIndex === -1;
 
-  // Common chart configuration
+  // Common chart configuration – Hex.tech aesthetic
   const commonTooltipStyle = {
     contentStyle: {
-      backgroundColor: "#1f1f20",
+      backgroundColor: "#161719",
       border: "1px solid #2e2e32",
-      borderRadius: "4px",
+      borderRadius: "6px",
+      fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+      fontSize: 11,
+      padding: "6px 10px",
     },
-    labelStyle: { color: "#d8d9da" },
+    labelStyle: { color: "#a0a0a0", fontFamily: "'JetBrains Mono', monospace", fontSize: 10 },
+    cursor: { stroke: "#555", strokeWidth: 1 },
+  };
+
+  const gridProps = {
+    strokeDasharray: "3 3",
+    stroke: "#2e2e32",
+    strokeOpacity: 0.5,
+  };
+
+  const axisTickStyle = {
+    fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+  };
+
+  // Shared XAxis props for synchronized zoom
+  const sharedXAxisProps = {
+    dataKey: "iteration" as const,
+    stroke: "#505050",
+    tickFormatter: formatIterationTick,
+    fontSize: 10,
+    scale: (logScale && !zoom.isZoomed ? "log" : "auto") as any,
+    domain: xDomain,
+    ticks: zoom.isZoomed ? xTicks : undefined,
+    allowDataOverflow: true,
+    tick: axisTickStyle,
+    type: "number" as const,
+  };
+
+  // Shared mouse handlers for brush-to-zoom
+  const chartMouseProps = {
+    onMouseDown: handleMouseDown,
+    onMouseMove: handleMouseMove,
+    onMouseUp: handleMouseUp,
   };
 
   return (
@@ -334,36 +416,49 @@ export function PlotPanel({
       )}
 
       {/* Main Duality Gap Chart */}
-      <div style={{ height: 350 }}>
+      <ZoomableChart
+        isZoomed={zoom.isZoomed}
+        onResetZoom={zoomActions.resetZoom}
+        height={350}
+        title="Duality Gap"
+        fullDomain={fullDomain}
+        zoomActions={zoomActions}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={chartData}
             margin={{ top: 10, right: 30, left: 20, bottom: 5 }}
+            {...chartMouseProps}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#2e2e32" />
-            <XAxis
-              dataKey="iteration"
-              stroke="#707070"
-              tickFormatter={(v) => v.toLocaleString()}
-              fontSize={11}
-              scale={logScale ? "log" : "auto"}
-              domain={logScale ? ['auto', 'auto'] : [0, 'auto']}
-            />
+            <CartesianGrid {...gridProps} />
+            <XAxis {...sharedXAxisProps} />
             <YAxis
               scale={logScale ? "log" : "auto"}
               domain={logScale ? [1e-6, "auto"] : [0, "auto"]}
-              stroke="#707070"
+              stroke="#505050"
               tickFormatter={formatYAxis}
-              fontSize={11}
+              fontSize={10}
               allowDataOverflow={true}
-              label={{ value: 'Duality Gap', angle: -90, position: 'insideLeft', style: { fill: '#707070', fontSize: 11 } }}
+              tick={axisTickStyle}
+              label={{ value: 'Duality Gap', angle: -90, position: 'insideLeft', style: { fill: '#505050', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" } }}
             />
             <Tooltip
               {...commonTooltipStyle}
               formatter={formatTooltip}
-              labelFormatter={(label) => `Iteration: ${label.toLocaleString()}`}
+              labelFormatter={(label) => `Iteration ${Number(label).toLocaleString()}`}
             />
-            {showLegend && <Legend wrapperStyle={{ fontSize: 11 }} />}
+            {showLegend && <Legend wrapperStyle={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} />}
+
+            {/* Brush selection area */}
+            {brushStart != null && brushEnd != null && (
+              <ReferenceArea
+                x1={brushStart}
+                x2={brushEnd}
+                strokeOpacity={0.3}
+                fill="#4ade80"
+                fillOpacity={0.1}
+              />
+            )}
 
             {/* Selected iteration reference line */}
             {selectedIterationValue > 0 && (
@@ -372,6 +467,7 @@ export function PlotPanel({
                 stroke="#ffffff"
                 strokeWidth={1.5}
                 strokeDasharray="4 4"
+                strokeOpacity={0.6}
               />
             )}
 
@@ -389,6 +485,7 @@ export function PlotPanel({
                     strokeWidth={selectedGame === i ? 2.5 : 1.5}
                     dot={false}
                     name={`Game ${i + 1}`}
+                    isAnimationActive={false}
                   />
                 );
               })}
@@ -402,6 +499,7 @@ export function PlotPanel({
                 strokeWidth={2.5}
                 dot={false}
                 name="Average Gap"
+                isAnimationActive={false}
               />
             )}
 
@@ -415,6 +513,7 @@ export function PlotPanel({
               dot={false}
               name="Karlin O(T^-1/2)"
               opacity={0.8}
+              isAnimationActive={false}
             />
 
             {/* Wang bound */}
@@ -427,55 +526,57 @@ export function PlotPanel({
               dot={false}
               name="Wang O(T^-1/3)"
               opacity={0.8}
+              isAnimationActive={false}
             />
           </LineChart>
         </ResponsiveContainer>
-      </div>
+      </ZoomableChart>
 
       {/* Bottom charts - side by side */}
       <div className="flex gap-4 justify-center">
         {/* Convergence Rate (alpha) Chart */}
         <div className="flex-1 min-w-0 max-w-[50%]">
-          <div className="text-xs font-medium text-gray-400 mb-1 px-2">
-            Convergence Rate (alpha)
-          </div>
-          <div style={{ height: 180 }}>
+          <ZoomableChart
+            isZoomed={zoom.isZoomed}
+            onResetZoom={zoomActions.resetZoom}
+            height={180}
+            title="Convergence Rate (alpha)"
+            fullDomain={fullDomain}
+            zoomActions={zoomActions}
+            chartMarginLeft={15}
+            chartMarginRight={15}
+          >
             {convergenceRateData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                   data={convergenceRateData}
                   margin={{ top: 5, right: 15, left: 15, bottom: 5 }}
+                  {...chartMouseProps}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2e2e32" />
-                  <XAxis
-                    dataKey="iteration"
-                    stroke="#707070"
-                    tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}
-                    fontSize={9}
-                    scale={logScale ? "log" : "auto"}
-                    domain={logScale ? ['auto', 'auto'] : [0, 'auto']}
-                  />
+                  <CartesianGrid {...gridProps} />
+                  <XAxis {...sharedXAxisProps} fontSize={9} />
                   <YAxis
                     domain={[-1, 0]}
-                    stroke="#707070"
-                    tickFormatter={(v) => v.toFixed(1)}
+                    stroke="#505050"
+                    tickFormatter={(v: number) => v.toFixed(1)}
                     fontSize={9}
-                    label={{ value: 'alpha', angle: -90, position: 'insideLeft', style: { fill: '#707070', fontSize: 9 } }}
+                    tick={axisTickStyle}
+                    label={{ value: 'alpha', angle: -90, position: 'insideLeft', style: { fill: '#505050', fontSize: 9, fontFamily: "'JetBrains Mono', monospace" } }}
                   />
                   <Tooltip
                     {...commonTooltipStyle}
                     formatter={formatAlphaTooltip}
-                    labelFormatter={(label) => `Iter: ${label.toLocaleString()}`}
+                    labelFormatter={(label) => `Iter: ${Number(label).toLocaleString()}`}
                   />
+
+                  {/* Brush selection area */}
+                  {brushStart != null && brushEnd != null && (
+                    <ReferenceArea x1={brushStart} x2={brushEnd} strokeOpacity={0.3} fill="#4ade80" fillOpacity={0.1} />
+                  )}
 
                   {/* Selected iteration reference line */}
                   {selectedIterationValue > 0 && (
-                    <ReferenceLine
-                      x={selectedIterationValue}
-                      stroke="#ffffff"
-                      strokeWidth={1}
-                      strokeDasharray="4 4"
-                    />
+                    <ReferenceLine x={selectedIterationValue} stroke="#ffffff" strokeWidth={1} strokeDasharray="4 4" strokeOpacity={0.6} />
                   )}
 
                   {/* Reference lines */}
@@ -508,70 +609,66 @@ export function PlotPanel({
                           strokeWidth={1}
                           dot={false}
                           opacity={0.7}
+                          isAnimationActive={false}
                         />
                       );
                     })}
 
                   {showAverage && (
-                    <Line
-                      type="monotone"
-                      dataKey="average"
-                      stroke="#fbbf24"
-                      strokeWidth={2}
-                      dot={false}
-                    />
+                    <Line type="monotone" dataKey="average" stroke="#fbbf24" strokeWidth={2} dot={false} isAnimationActive={false} />
                   )}
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-xs text-muted">
+              <div className="h-full flex items-center justify-center text-xs text-muted font-mono">
                 Need more data...
               </div>
             )}
-          </div>
+          </ZoomableChart>
         </div>
 
         {/* Gap / Karlin Bound Ratio Chart */}
         <div className="flex-1 min-w-0 max-w-[50%]">
-          <div className="text-xs font-medium text-gray-400 mb-1 px-2">
-            Gap / Karlin Bound Ratio
-          </div>
-          <div style={{ height: 180 }}>
+          <ZoomableChart
+            isZoomed={zoom.isZoomed}
+            onResetZoom={zoomActions.resetZoom}
+            height={180}
+            title="Gap / Karlin Bound Ratio"
+            fullDomain={fullDomain}
+            zoomActions={zoomActions}
+            chartMarginLeft={15}
+            chartMarginRight={15}
+          >
             {ratioData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                   data={ratioData}
                   margin={{ top: 5, right: 15, left: 15, bottom: 5 }}
+                  {...chartMouseProps}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2e2e32" />
-                  <XAxis
-                    dataKey="iteration"
-                    stroke="#707070"
-                    tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}
-                    fontSize={9}
-                    scale={logScale ? "log" : "auto"}
-                    domain={logScale ? ['auto', 'auto'] : [0, 'auto']}
-                  />
+                  <CartesianGrid {...gridProps} />
+                  <XAxis {...sharedXAxisProps} fontSize={9} />
                   <YAxis
-                    stroke="#707070"
-                    tickFormatter={(v) => v.toFixed(1)}
+                    stroke="#505050"
+                    tickFormatter={(v: number) => v.toFixed(1)}
                     fontSize={9}
-                    label={{ value: 'Ratio', angle: -90, position: 'insideLeft', style: { fill: '#707070', fontSize: 9 } }}
+                    tick={axisTickStyle}
+                    label={{ value: 'Ratio', angle: -90, position: 'insideLeft', style: { fill: '#505050', fontSize: 9, fontFamily: "'JetBrains Mono', monospace" } }}
                   />
                   <Tooltip
                     {...commonTooltipStyle}
                     formatter={formatRatioTooltip}
-                    labelFormatter={(label) => `Iter: ${label.toLocaleString()}`}
+                    labelFormatter={(label) => `Iter: ${Number(label).toLocaleString()}`}
                   />
+
+                  {/* Brush selection area */}
+                  {brushStart != null && brushEnd != null && (
+                    <ReferenceArea x1={brushStart} x2={brushEnd} strokeOpacity={0.3} fill="#4ade80" fillOpacity={0.1} />
+                  )}
 
                   {/* Selected iteration reference line */}
                   {selectedIterationValue > 0 && (
-                    <ReferenceLine
-                      x={selectedIterationValue}
-                      stroke="#ffffff"
-                      strokeWidth={1}
-                      strokeDasharray="4 4"
-                    />
+                    <ReferenceLine x={selectedIterationValue} stroke="#ffffff" strokeWidth={1} strokeDasharray="4 4" strokeOpacity={0.6} />
                   )}
 
                   {/* Reference line at 1.0 (gap equals theoretical bound) */}
@@ -597,27 +694,22 @@ export function PlotPanel({
                           strokeWidth={1}
                           dot={false}
                           opacity={0.7}
+                          isAnimationActive={false}
                         />
                       );
                     })}
 
                   {showAverage && (
-                    <Line
-                      type="monotone"
-                      dataKey="average"
-                      stroke="#fbbf24"
-                      strokeWidth={2}
-                      dot={false}
-                    />
+                    <Line type="monotone" dataKey="average" stroke="#fbbf24" strokeWidth={2} dot={false} isAnimationActive={false} />
                   )}
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-xs text-muted">
+              <div className="h-full flex items-center justify-center text-xs text-muted font-mono">
                 Need more data...
               </div>
             )}
-          </div>
+          </ZoomableChart>
         </div>
       </div>
 
@@ -641,6 +733,11 @@ export function PlotPanel({
             selectedIterationIndex={selectedIterationIndex}
             logScale={logScale}
             gameLabel={label}
+            domain={zoom.domain}
+            onBrushZoom={zoomActions.setDomain}
+            isZoomed={zoom.isZoomed}
+            onResetZoom={zoomActions.resetZoom}
+            zoomActions={zoomActions}
           />
         );
       })()}

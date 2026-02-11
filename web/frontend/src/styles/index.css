@@ -1,3 +1,6 @@
+/* JetBrains Mono – used app-wide for a clean data-dashboard aesthetic */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -11,7 +14,7 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
   background-color: var(--background);
   color: #d8d9da;
   margin: 0;
@@ -137,6 +140,26 @@ input[type="checkbox"] {
 .chart-container {
   @apply w-full bg-surface rounded-lg p-4;
   min-height: 200px;
+}
+
+/* Zoomable chart wrapper – user-select none during brush interaction */
+.zoomable-chart {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Recharts overrides for Hex.tech aesthetic */
+.zoomable-chart .recharts-cartesian-grid line {
+  stroke-opacity: 0.35;
+}
+
+.zoomable-chart .recharts-tooltip-cursor {
+  stroke: #555;
+  stroke-width: 1;
+}
+
+.zoomable-chart .recharts-reference-area rect {
+  cursor: col-resize;
 }
 
 /* Resizable panels */

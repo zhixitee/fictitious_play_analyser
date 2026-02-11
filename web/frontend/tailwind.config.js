@@ -13,6 +13,10 @@ export default {
         muted: '#707070',
         accent: '#505050',
       },
+      fontFamily: {
+        sans: ["'JetBrains Mono'", "'Fira Code'", "'Consolas'", "monospace"],
+        mono: ["'JetBrains Mono'", "'Fira Code'", "'Consolas'", "monospace"],
+      },
     },
   },
   plugins: [],
