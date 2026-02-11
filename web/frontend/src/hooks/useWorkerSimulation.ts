@@ -1,9 +1,13 @@
 /**
  * useWorkerSimulation Hook
  * 
- * Manages simulation state and Web Worker communication.
- * Provides a clean interface for the UI to start/stop simulations
- * and receive real-time updates.
+ * High-performance simulation state manager.
+ * 
+ * Architecture:
+ * - Worker sends small delta payloads (~1-5KB) instead of full history
+ * - Deltas are accumulated into a mutable ref (no React re-renders)
+ * - A requestAnimationFrame loop syncs ref → React state at ≤60 fps
+ * - This keeps the UI smooth even during 1M+ iteration simulations
  */
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -56,6 +60,43 @@ const initialState: SimulationState = {
   bestColHistory: [],
 };
 
+/** Mutable data store kept outside React state to avoid GC pressure */
+interface SimDataRef {
+  iterations: number[];
+  allGaps: number[][];
+  avgGaps: number[];
+  matrices: Matrix[];
+  currentIteration: number;
+  progress: number;
+  avgGap: number;
+  seed: number | null;
+  rowStrategies: number[][][];
+  colStrategies: number[][][];
+  bestRowHistory: number[][];
+  bestColHistory: number[][];
+  dirty: boolean;           // true when new data has arrived since last rAF
+  version: number;          // monotonic counter for change detection
+}
+
+function createEmptyDataRef(): SimDataRef {
+  return {
+    iterations: [],
+    allGaps: [],
+    avgGaps: [],
+    matrices: [],
+    currentIteration: 0,
+    progress: 0,
+    avgGap: 0,
+    seed: null,
+    rowStrategies: [],
+    colStrategies: [],
+    bestRowHistory: [],
+    bestColHistory: [],
+    dirty: false,
+    version: 0,
+  };
+}
+
 interface UseWorkerSimulationReturn {
   state: SimulationState;
   start: (config: ControlsConfig) => void;
@@ -68,7 +109,10 @@ interface UseWorkerSimulationReturn {
 export function useWorkerSimulation(): UseWorkerSimulationReturn {
   const [state, setState] = useState<SimulationState>(initialState);
   const workerRef = useRef<Worker | null>(null);
-  const startTimeRef = useRef<number>(0);
+  const dataRef = useRef<SimDataRef>(createEmptyDataRef());
+  const rafRef = useRef<number>(0);
+  const lastSyncedVersion = useRef<number>(0);
+  const runningRef = useRef(false);
 
   // Add log entry
   const addLog = useCallback((message: string) => {
@@ -79,9 +123,47 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
     }));
   }, []);
 
+  // rAF render loop: syncs ref data → React state at ≤60fps
+  useEffect(() => {
+    function tick() {
+      const d = dataRef.current;
+      if (d.dirty && d.version !== lastSyncedVersion.current) {
+        lastSyncedVersion.current = d.version;
+        d.dirty = false;
+
+        setState((prev) => ({
+          ...prev,
+          iterations: d.iterations,
+          allGaps: d.allGaps,
+          avgGaps: d.avgGaps,
+          matrices: d.matrices,
+          currentIteration: d.currentIteration,
+          progress: d.progress,
+          avgGap: d.avgGap,
+          seed: d.seed,
+          rowStrategies: d.rowStrategies,
+          colStrategies: d.colStrategies,
+          bestRowHistory: d.bestRowHistory,
+          bestColHistory: d.bestColHistory,
+        }));
+      }
+      if (runningRef.current) {
+        rafRef.current = requestAnimationFrame(tick);
+      }
+    }
+    if (runningRef.current) {
+      rafRef.current = requestAnimationFrame(tick);
+    }
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [state.status]); // re-subscribe when status changes (idle→running→completed)
+
   // Cleanup worker on unmount
   useEffect(() => {
     return () => {
+      runningRef.current = false;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
       if (workerRef.current) {
         workerRef.current.terminate();
         workerRef.current = null;
@@ -89,31 +171,84 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
     };
   }, []);
 
-  // Handle worker messages
+  // Handle worker messages – pure ref mutations, no setState
   const handleWorkerMessage = useCallback(
     (event: MessageEvent<WorkerOutMessage>) => {
       const msg = event.data;
 
       switch (msg.type) {
-        case "update":
-          setState((prev) => ({
-            ...prev,
-            iterations: msg.iterations,
-            allGaps: msg.allGaps,
-            avgGaps: msg.avgGaps,
-            matrices: msg.matrices,
-            currentIteration: msg.iteration,
-            progress: msg.progress,
-            avgGap: msg.avgGap,
-            seed: msg.seed,
-            rowStrategies: msg.rowStrategies,
-            colStrategies: msg.colStrategies,
-            bestRowHistory: msg.bestRowHistory,
-            bestColHistory: msg.bestColHistory,
-          }));
-          break;
+        case "update": {
+          const d = dataRef.current;
 
-        case "done":
+          // Matrices sent once on first update
+          if (msg.matrices) {
+            d.matrices = msg.matrices;
+            // Initialize per-game arrays if needed
+            const g = msg.matrices.length;
+            if (d.allGaps.length !== g) {
+              d.allGaps = Array.from({ length: g }, () => []);
+              d.rowStrategies = Array.from({ length: g }, () => []);
+              d.colStrategies = Array.from({ length: g }, () => []);
+              d.bestRowHistory = Array.from({ length: g }, () => []);
+              d.bestColHistory = Array.from({ length: g }, () => []);
+            }
+          }
+
+          // Append delta arrays
+          const di = msg.deltaIterations;
+          for (let k = 0; k < di.length; k++) {
+            d.iterations.push(di[k]);
+          }
+          for (let g = 0; g < msg.deltaAllGaps.length; g++) {
+            const dg = msg.deltaAllGaps[g];
+            for (let k = 0; k < dg.length; k++) {
+              d.allGaps[g].push(dg[k]);
+            }
+          }
+          const da = msg.deltaAvgGaps;
+          for (let k = 0; k < da.length; k++) {
+            d.avgGaps.push(da[k]);
+          }
+          for (let g = 0; g < msg.deltaBestRowHistory.length; g++) {
+            const dr = msg.deltaBestRowHistory[g];
+            const dc = msg.deltaBestColHistory[g];
+            for (let k = 0; k < dr.length; k++) {
+              d.bestRowHistory[g].push(dr[k]);
+              d.bestColHistory[g].push(dc[k]);
+            }
+          }
+          for (let g = 0; g < msg.deltaRowStrategies.length; g++) {
+            for (const chunk of msg.deltaRowStrategies[g]) {
+              d.rowStrategies[g].push(chunk);
+            }
+            for (const chunk of msg.deltaColStrategies[g]) {
+              d.colStrategies[g].push(chunk);
+            }
+          }
+
+          d.currentIteration = msg.iteration;
+          d.progress = msg.progress;
+          d.avgGap = msg.avgGap;
+          d.seed = msg.seed;
+          d.dirty = true;
+          d.version++;
+          break;
+        }
+
+        case "done": {
+          runningRef.current = false;
+          // Final sync uses the full arrays from the done message
+          const d = dataRef.current;
+          d.iterations = msg.iterations;
+          d.allGaps = msg.allGaps;
+          d.avgGaps = msg.avgGaps;
+          d.matrices = msg.matrices;
+          d.seed = msg.seed;
+          d.rowStrategies = msg.rowStrategies;
+          d.colStrategies = msg.colStrategies;
+          d.bestRowHistory = msg.bestRowHistory;
+          d.bestColHistory = msg.bestColHistory;
+
           setState((prev) => ({
             ...prev,
             status: "completed",
@@ -138,8 +273,10 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
               `Karlin ratio: ${msg.summary.karlinStats.mean.toFixed(4)}`
           );
           break;
+        }
 
         case "error":
+          runningRef.current = false;
           setState((prev) => ({
             ...prev,
             status: "error",
@@ -160,14 +297,17 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
         workerRef.current.terminate();
       }
 
+      // Reset data ref
+      dataRef.current = createEmptyDataRef();
+      lastSyncedVersion.current = 0;
+      runningRef.current = true;
+
       // Reset state
       setState({
         ...initialState,
         status: "running",
         logs: [],
       });
-
-      startTimeRef.current = performance.now();
 
       // Create new worker
       const worker = new Worker(
@@ -177,6 +317,7 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
 
       worker.onmessage = handleWorkerMessage;
       worker.onerror = (error) => {
+        runningRef.current = false;
         setState((prev) => ({
           ...prev,
           status: "error",
@@ -222,10 +363,14 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
 
   // Reset
   const reset = useCallback(() => {
+    runningRef.current = false;
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
     if (workerRef.current) {
       workerRef.current.terminate();
       workerRef.current = null;
     }
+    dataRef.current = createEmptyDataRef();
+    lastSyncedVersion.current = 0;
     setState(initialState);
   }, []);
 

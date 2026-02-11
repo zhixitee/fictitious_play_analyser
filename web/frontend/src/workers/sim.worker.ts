@@ -47,17 +47,19 @@ export type WorkerInMessage = WorkerStartMessage | WorkerStopMessage;
 export interface WorkerUpdateMessage {
   type: "update";
   iteration: number;
-  iterations: number[];
-  allGaps: number[][];
-  avgGaps: number[];
-  matrices: Matrix[];
+  // Delta arrays – only new data since last update
+  deltaIterations: number[];
+  deltaAllGaps: number[][];        // [game][newEntries]
+  deltaAvgGaps: number[];
+  deltaRowStrategies: number[][][]; // [game][newChunks][action]
+  deltaColStrategies: number[][][]; // [game][newChunks][action]
+  deltaBestRowHistory: number[][];  // [game][newEntries]
+  deltaBestColHistory: number[][];  // [game][newEntries]
+  // Sent once on first update
+  matrices: Matrix[] | null;
+  seed: number;
   avgGap: number;
   progress: number;
-  seed: number;
-  rowStrategies: number[][][];  // [game][iterIdx][action]
-  colStrategies: number[][][];  // [game][iterIdx][action]
-  bestRowHistory: number[][];   // [game][iterIdx] - row player best response index
-  bestColHistory: number[][];   // [game][iterIdx] - col player best response index
 }
 
 export interface WorkerDoneMessage {
@@ -201,14 +203,24 @@ function runSimulation(cfg: SimConfig) {
     const totalIter = cfg.iterations;
     const chunkSize = cfg.chunk;
 
-    // Accumulate results
+    // Accumulate full results (only sent in final "done" message)
     const allIters: number[] = [];
     const allGaps: number[][] = matrices.map(() => []);
     const avgGaps: number[] = [];
-    const rowStrategies: number[][][] = matrices.map(() => []);  // [game][iterIdx][action]
-    const colStrategies: number[][][] = matrices.map(() => []);  // [game][iterIdx][action]
-    const bestRowHistory: number[][] = matrices.map(() => []);   // [game][iterIdx]
-    const bestColHistory: number[][] = matrices.map(() => []);   // [game][iterIdx]
+    const rowStrategies: number[][][] = matrices.map(() => []);
+    const colStrategies: number[][][] = matrices.map(() => []);
+    const bestRowHistory: number[][] = matrices.map(() => []);
+    const bestColHistory: number[][] = matrices.map(() => []);
+
+    // Delta buffers – flushed on each UI update
+    let dIters: number[] = [];
+    let dGaps: number[][] = matrices.map(() => []);
+    let dAvg: number[] = [];
+    let dRowStrat: number[][][] = matrices.map(() => []);
+    let dColStrat: number[][][] = matrices.map(() => []);
+    let dBestRow: number[][] = matrices.map(() => []);
+    let dBestCol: number[][] = matrices.map(() => []);
+    let sentMatrices = false;
 
     let current = 0;
     let lastUpdateTime = startTime;
@@ -225,23 +237,31 @@ function runSimulation(cfg: SimConfig) {
         if (i === 0) {
           for (let k = 0; k < iters.length; k++) {
             allIters.push(iters[k]);
+            dIters.push(iters[k]);
           }
         }
         
         // Push gaps for this game
         for (let k = 0; k < gaps.length; k++) {
           allGaps[i].push(gaps[k]);
+          dGaps[i].push(gaps[k]);
         }
         
         // Push best response history for this game
         for (let k = 0; k < brRow.length; k++) {
           bestRowHistory[i].push(brRow[k]);
           bestColHistory[i].push(brCol[k]);
+          dBestRow[i].push(brRow[k]);
+          dBestCol[i].push(brCol[k]);
         }
         
         // Store final strategy for this chunk (one per chunk, not per iteration)
-        rowStrategies[i].push(Array.from(finalRowStrategy));
-        colStrategies[i].push(Array.from(finalColStrategy));
+        const rowArr = Array.from(finalRowStrategy);
+        const colArr = Array.from(finalColStrategy);
+        rowStrategies[i].push(rowArr);
+        colStrategies[i].push(colArr);
+        dRowStrat[i].push(rowArr);
+        dColStrat[i].push(colArr);
       }
 
       // Compute average gaps for each iteration in this chunk
@@ -251,12 +271,14 @@ function runSimulation(cfg: SimConfig) {
         for (let i = 0; i < allGaps.length; i++) {
           sum += allGaps[i][iterIdx];
         }
-        avgGaps.push(sum / allGaps.length);
+        const avg = sum / allGaps.length;
+        avgGaps.push(avg);
+        dAvg.push(avg);
       }
 
       current += step;
 
-      // Post update (throttled)
+      // Post delta update (throttled)
       const now = performance.now();
       if (now - lastUpdateTime >= updateInterval || current >= totalIter) {
         lastUpdateTime = now;
@@ -266,18 +288,28 @@ function runSimulation(cfg: SimConfig) {
         self.postMessage({
           type: "update",
           iteration: current,
-          iterations: allIters,
-          allGaps,
-          avgGaps,
-          matrices,
+          deltaIterations: dIters,
+          deltaAllGaps: dGaps,
+          deltaAvgGaps: dAvg,
+          deltaRowStrategies: dRowStrat,
+          deltaColStrategies: dColStrat,
+          deltaBestRowHistory: dBestRow,
+          deltaBestColHistory: dBestCol,
+          matrices: sentMatrices ? null : matrices,
+          seed,
           avgGap,
           progress: (current / totalIter) * 100,
-          seed,
-          rowStrategies,
-          colStrategies,
-          bestRowHistory,
-          bestColHistory,
         } satisfies WorkerUpdateMessage);
+
+        // Clear delta buffers
+        dIters = [];
+        dGaps = matrices.map(() => []);
+        dAvg = [];
+        dRowStrat = matrices.map(() => []);
+        dColStrat = matrices.map(() => []);
+        dBestRow = matrices.map(() => []);
+        dBestCol = matrices.map(() => []);
+        sentMatrices = true;
       }
     }
 

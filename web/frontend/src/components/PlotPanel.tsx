@@ -19,6 +19,7 @@
  */
 
 import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { motion } from "framer-motion";
 import {
   LineChart,
   Line,
@@ -119,6 +120,41 @@ export function PlotPanel({
     }
     prevIterLen.current = iterations.length;
   }, [iterations.length, zoomActions]);
+
+  // ── Initial-load animation detection ──────────────────────────────────────
+  // Animate lines only on the very first data arrival (empty → has data).
+  // Once the initial draw completes, lock animations off so streaming updates
+  // don't cause the chart lines to "bounce" on every frame.
+  const hadDataRef = useRef(false);
+  const [initialAnimDone, setInitialAnimDone] = useState(false);
+  const isInitialRender = iterations.length > 0 && !hadDataRef.current;
+
+  useEffect(() => {
+    if (iterations.length > 0 && !hadDataRef.current) {
+      hadDataRef.current = true;
+      // Allow Recharts line draw animation for ~900ms, then lock it off
+      const timer = setTimeout(() => setInitialAnimDone(true), 1000);
+      return () => clearTimeout(timer);
+    }
+    if (iterations.length === 0) {
+      // Simulation was reset – allow initial animation again next time
+      hadDataRef.current = false;
+      setInitialAnimDone(false);
+    }
+  }, [iterations.length]);
+
+  const lineAnimActive = isInitialRender && !initialAnimDone;
+
+  // Framer Motion entrance variants
+  const chartVariants = {
+    hidden: { opacity: 0, y: 18 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" as const } },
+  };
+
+  const staggerContainer = {
+    hidden: {},
+    visible: { transition: { staggerChildren: 0.12 } },
+  };
 
   // Brush-to-zoom interaction state (shared across all charts)
   const [brushStart, setBrushStart] = useState<string | number | null>(null);
@@ -375,10 +411,16 @@ export function PlotPanel({
   };
 
   return (
-    <div className="space-y-4">
+    <motion.div
+      className="space-y-4"
+      variants={staggerContainer}
+      initial="hidden"
+      animate="visible"
+      key={hadDataRef.current ? "active" : "idle"}
+    >
       {/* Game visibility checkboxes */}
       {gameCount > 1 && (
-        <div className="flex flex-wrap items-center gap-3 px-2 py-2 bg-gray-800/50 rounded">
+        <motion.div variants={chartVariants} className="flex flex-wrap items-center gap-3 px-2 py-2 bg-gray-800/50 rounded">
           <span className="text-xs text-muted font-medium">Show Games:</span>
           {Array.from({ length: gameCount }, (_, i) => (
             <label
@@ -412,10 +454,11 @@ export function PlotPanel({
           >
             Show All
           </button>
-        </div>
+        </motion.div>
       )}
 
       {/* Main Duality Gap Chart */}
+      <motion.div variants={chartVariants}>
       <ZoomableChart
         isZoomed={zoom.isZoomed}
         onResetZoom={zoomActions.resetZoom}
@@ -485,7 +528,9 @@ export function PlotPanel({
                     strokeWidth={selectedGame === i ? 2.5 : 1.5}
                     dot={false}
                     name={`Game ${i + 1}`}
-                    isAnimationActive={false}
+                    isAnimationActive={lineAnimActive}
+                    animationDuration={900}
+                    animationEasing="ease-out"
                   />
                 );
               })}
@@ -499,7 +544,9 @@ export function PlotPanel({
                 strokeWidth={2.5}
                 dot={false}
                 name="Average Gap"
-                isAnimationActive={false}
+                isAnimationActive={lineAnimActive}
+                animationDuration={900}
+                animationEasing="ease-out"
               />
             )}
 
@@ -513,7 +560,9 @@ export function PlotPanel({
               dot={false}
               name="Karlin O(T^-1/2)"
               opacity={0.8}
-              isAnimationActive={false}
+              isAnimationActive={lineAnimActive}
+              animationDuration={900}
+              animationEasing="ease-out"
             />
 
             {/* Wang bound */}
@@ -526,14 +575,17 @@ export function PlotPanel({
               dot={false}
               name="Wang O(T^-1/3)"
               opacity={0.8}
-              isAnimationActive={false}
+              isAnimationActive={lineAnimActive}
+              animationDuration={900}
+              animationEasing="ease-out"
             />
           </LineChart>
         </ResponsiveContainer>
       </ZoomableChart>
+      </motion.div>
 
       {/* Bottom charts - side by side */}
-      <div className="flex gap-4 justify-center">
+      <motion.div variants={chartVariants} className="flex gap-4 justify-center">
         {/* Convergence Rate (alpha) Chart */}
         <div className="flex-1 min-w-0 max-w-[50%]">
           <ZoomableChart
@@ -609,13 +661,15 @@ export function PlotPanel({
                           strokeWidth={1}
                           dot={false}
                           opacity={0.7}
-                          isAnimationActive={false}
+                          isAnimationActive={lineAnimActive}
+                          animationDuration={900}
+                          animationEasing="ease-out"
                         />
                       );
                     })}
 
                   {showAverage && (
-                    <Line type="monotone" dataKey="average" stroke="#fbbf24" strokeWidth={2} dot={false} isAnimationActive={false} />
+                    <Line type="monotone" dataKey="average" stroke="#fbbf24" strokeWidth={2} dot={false} isAnimationActive={lineAnimActive} animationDuration={900} animationEasing="ease-out" />
                   )}
                 </LineChart>
               </ResponsiveContainer>
@@ -694,13 +748,15 @@ export function PlotPanel({
                           strokeWidth={1}
                           dot={false}
                           opacity={0.7}
-                          isAnimationActive={false}
+                          isAnimationActive={lineAnimActive}
+                          animationDuration={900}
+                          animationEasing="ease-out"
                         />
                       );
                     })}
 
                   {showAverage && (
-                    <Line type="monotone" dataKey="average" stroke="#fbbf24" strokeWidth={2} dot={false} isAnimationActive={false} />
+                    <Line type="monotone" dataKey="average" stroke="#fbbf24" strokeWidth={2} dot={false} isAnimationActive={lineAnimActive} animationDuration={900} animationEasing="ease-out" />
                   )}
                 </LineChart>
               </ResponsiveContainer>
@@ -711,7 +767,7 @@ export function PlotPanel({
             )}
           </ZoomableChart>
         </div>
-      </div>
+      </motion.div>
 
       {/* Best Response Dynamics Chart */}
       {bestRowHistory && bestColHistory && bestRowHistory.length > 0 && (() => {
@@ -725,6 +781,7 @@ export function PlotPanel({
           : gameCount === 1 ? "Game 1" : `Game 1 (of ${gameCount})`;
         if (!brRow || !brCol) return null;
         return (
+          <motion.div variants={chartVariants}>
           <BestResponseChart
             iterations={iterations}
             bestRowHistory={brRow}
@@ -739,9 +796,10 @@ export function PlotPanel({
             onResetZoom={zoomActions.resetZoom}
             zoomActions={zoomActions}
           />
+          </motion.div>
         );
       })()}
-    </div>
+    </motion.div>
   );
 }
 
