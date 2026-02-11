@@ -48,13 +48,13 @@ function CollapsibleSection({ title, defaultOpen = true, children }: Collapsible
     <div className="border border-border rounded overflow-hidden">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-3 py-2 bg-gray-800 hover:bg-gray-700 flex items-center gap-2 text-sm font-medium text-gray-200 transition-colors"
+        className="w-full px-3 py-2 bg-surface hover:bg-[#1e1f21] flex items-center gap-2 text-sm font-medium text-gray-200 transition-colors"
       >
         {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         {title}
       </button>
       {isOpen && (
-        <div className="p-3 bg-gray-900/50">
+        <div className="p-3 bg-surface">
           {children}
         </div>
       )}
@@ -192,7 +192,7 @@ export function IterationExplorer({
   };
 
   return (
-    <div className="card w-80 flex-shrink-0 space-y-4">
+    <div className="card space-y-4">
       <h2 className="text-lg font-bold text-gray-200 border-b border-border pb-2">
         Iteration Explorer
       </h2>

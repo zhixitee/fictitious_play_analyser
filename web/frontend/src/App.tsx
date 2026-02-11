@@ -8,7 +8,8 @@
  */
 
 import React, { useState, useCallback, useMemo } from "react";
-import { Github, Info } from "lucide-react";
+import { Github, Info, GripVertical } from "lucide-react";
+import { Group, Panel, Separator } from "react-resizable-panels";
 import { useWorkerSimulation } from "./hooks/useWorkerSimulation";
 import {
   ControlsPanel,
@@ -156,79 +157,97 @@ function App() {
         )}
       </header>
 
-      {/* Main Content - 3-column layout */}
-      <main className="flex-1 min-h-0 px-4 py-4">
-        <div className="flex gap-4 h-full">
-          {/* Left Panel - Controls */}
-          <div className="flex-shrink-0 h-full overflow-y-auto">
-            <div className="flex flex-col gap-4">
-              <ControlsPanel
-                config={config}
-                onConfigChange={handleConfigChange}
-                onStart={handleStart}
-                onStop={stop}
-                onReset={reset}
-                isRunning={isRunning}
-                progress={state.progress}
-                currentIteration={state.currentIteration}
-                avgGap={state.avgGap}
-                status={state.status}
-                error={state.error ?? undefined}
-                gameCount={gameCount}
-              />
-
-              {/* Matrix Editor (for custom mode) */}
-              {config.mode === "custom" && (
-                <div className="card w-80 flex-shrink-0">
-                  <h3 className="text-sm font-bold text-gray-300 mb-3">
-                    Custom Matrix
-                  </h3>
-                  <MatrixEditor
-                    matrix={config.customMatrix}
-                    onChange={(matrix) => handleConfigChange({ customMatrix: matrix })}
-                    disabled={isRunning}
+      {/* Main Content - Resizable 3-panel layout */}
+      <main className="flex-1 min-h-0 overflow-hidden">
+        <div className="h-full w-full">
+          <Group orientation="horizontal" className="h-full">
+            {/* Left Panel - Controls */}
+            <Panel defaultSize="20" minSize="15" id="controls" className="h-full">
+              <div className="h-full overflow-y-auto p-4 pr-1">
+                <div className="flex flex-col gap-4">
+                  <ControlsPanel
+                    config={config}
+                    onConfigChange={handleConfigChange}
+                    onStart={handleStart}
+                    onStop={stop}
+                    onReset={reset}
+                    isRunning={isRunning}
+                    progress={state.progress}
+                    currentIteration={state.currentIteration}
+                    avgGap={state.avgGap}
+                    status={state.status}
+                    error={state.error ?? undefined}
+                    gameCount={gameCount}
                   />
-                </div>
-              )}
-            </div>
-          </div>
 
-          {/* Center Panel - Charts */}
-          <div className="flex-1 min-w-0 flex flex-col">
-            <div className="card h-full flex flex-col overflow-y-auto">
-              <h2 className="text-lg font-bold text-gray-200 border-b border-border pb-2 mb-4 flex-shrink-0">
-                Duality Gap Convergence
-              </h2>
-              <div className="flex-1 min-h-0">
-                <PlotPanel
-                  iterations={state.iterations}
-                  allGaps={state.allGaps}
-                  avgGaps={state.avgGaps}
-                  explorerGameIndex={explorerGameIndex}
-                  logScale={config.logScale}
-                  showLegend={config.showLegend}
-                  visibleGames={visibleGames}
-                  onVisibleGamesChange={setVisibleGames}
+                  {/* Matrix Editor (for custom mode) */}
+                  {config.mode === "custom" && (
+                    <div className="card flex-shrink-0">
+                      <h3 className="text-sm font-bold text-gray-300 mb-3">
+                        Custom Matrix
+                      </h3>
+                      <MatrixEditor
+                        matrix={config.customMatrix}
+                        onChange={(matrix) => handleConfigChange({ customMatrix: matrix })}
+                        disabled={isRunning}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Panel>
+
+            {/* Left Resize Handle */}
+            <Separator className="w-1.5 flex items-center justify-center group hover:bg-border/50 transition-colors">
+              <GripVertical size={12} className="text-muted group-hover:text-gray-300 transition-colors" />
+            </Separator>
+
+            {/* Center Panel - Charts */}
+            <Panel defaultSize="60" minSize="30" id="charts" className="h-full">
+              <div className="h-full overflow-y-auto py-4 px-1">
+                <div className="card h-full flex flex-col">
+                  <h2 className="text-lg font-bold text-gray-200 border-b border-border pb-2 mb-4 flex-shrink-0">
+                    Duality Gap Convergence
+                  </h2>
+                  <div className="flex-1 min-h-0">
+                    <PlotPanel
+                      iterations={state.iterations}
+                      allGaps={state.allGaps}
+                      avgGaps={state.avgGaps}
+                      explorerGameIndex={explorerGameIndex}
+                      logScale={config.logScale}
+                      showLegend={config.showLegend}
+                      visibleGames={visibleGames}
+                      onVisibleGamesChange={setVisibleGames}
+                      selectedIterationIndex={selectedIterationIndex}
+                      bestRowHistory={state.bestRowHistory}
+                      bestColHistory={state.bestColHistory}
+                      matrices={state.matrices}
+                    />
+                  </div>
+                </div>
+              </div>
+            </Panel>
+
+            {/* Right Resize Handle */}
+            <Separator className="w-1.5 flex items-center justify-center group hover:bg-border/50 transition-colors">
+              <GripVertical size={12} className="text-muted group-hover:text-gray-300 transition-colors" />
+            </Separator>
+
+            {/* Right Panel - Iteration Explorer */}
+            <Panel defaultSize="20" minSize="15" id="explorer" className="h-full">
+              <div className="h-full overflow-y-auto p-4 pl-1">
+                <IterationExplorer
+                  state={state}
                   selectedIterationIndex={selectedIterationIndex}
-                  bestRowHistory={state.bestRowHistory}
-                  bestColHistory={state.bestColHistory}
-                  matrices={state.matrices}
+                  onIterationChange={setSelectedIterationIndex}
+                  explorerGameIndex={explorerGameIndex}
+                  onGameChange={setExplorerGameIndex}
+                  isCompleted={isCompleted}
                 />
               </div>
-            </div>
-          </div>
-
-          {/* Right Panel - Iteration Explorer */}
-          <div className="flex-shrink-0 h-full overflow-y-auto">
-            <IterationExplorer
-              state={state}
-              selectedIterationIndex={selectedIterationIndex}
-              onIterationChange={setSelectedIterationIndex}
-              explorerGameIndex={explorerGameIndex}
-              onGameChange={setExplorerGameIndex}
-              isCompleted={isCompleted}
-            />
-          </div>
+            </Panel>
+          </Group>
         </div>
       </main>
 

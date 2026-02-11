@@ -10,10 +10,32 @@
  * - Progress bar and status
  */
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Play, Square, RotateCcw, Dice5 } from "lucide-react";
 import type { SimMode } from "../workers/sim.worker";
 import type { TieBreakingRule, InitializationMode } from "../types/simulation";
+
+/** Estimate peak memory usage based on simulation config */
+function estimateMemoryMB(config: {
+  batchSize: number;
+  iterations: number;
+  chunkSize: number;
+  sizeN: number;
+  mode: string;
+  sizes: number[];
+}): number {
+  const batch = Math.max(1, config.batchSize || 1);
+  const iters = Math.max(1, config.iterations || 1000);
+  const chunk = Math.max(1, config.chunkSize || 100);
+  const matSize = config.mode === "mixed"
+    ? Math.max(...(config.sizes?.length ? config.sizes : [3]))
+    : Math.max(1, config.sizeN || 3);
+
+  const strategiesMemory = batch * Math.ceil(iters / chunk) * matSize * 8 * 2;
+  const gapsMemory = batch * iters * 8;
+  const overheadFactor = 1.5;
+  return (strategiesMemory + gapsMemory) * overheadFactor / (1024 * 1024);
+}
 
 export interface ControlsConfig {
   mode: SimMode;
@@ -86,8 +108,21 @@ export function ControlsPanel({
     onConfigChange({ sizes: newSizes.length > 0 ? newSizes : [3] });
   };
 
+  const estimatedMB = useMemo(() => estimateMemoryMB(config), [
+    config.batchSize, config.iterations, config.chunkSize,
+    config.sizeN, config.mode, config.sizes,
+  ]);
+
+  const memoryColor = estimatedMB < 100
+    ? "bg-green-700/40 text-green-300 border-green-700"
+    : estimatedMB < 500
+    ? "bg-yellow-700/40 text-yellow-300 border-yellow-700"
+    : "bg-red-700/40 text-red-300 border-red-700";
+
+  const memoryLabel = estimatedMB < 100 ? "Safe" : estimatedMB < 500 ? "Caution" : "Danger";
+
   return (
-    <div className="card w-80 flex-shrink-0 space-y-4">
+    <div className="card space-y-4">
       <h2 className="text-lg font-bold text-gray-200 border-b border-border pb-2">
         Simulation Controls
       </h2>
@@ -217,7 +252,7 @@ export function ControlsPanel({
           disabled={isRunning}
           min={1}
           max={MAX_CHUNK_SIZE}
-          step={100}
+          step={1}
           className="w-full"
         />
       </div>
@@ -317,6 +352,12 @@ export function ControlsPanel({
             <option value="random">Random Beliefs</option>
           </select>
         </div>
+      </div>
+
+      {/* Memory Usage Estimate */}
+      <div className={`text-xs rounded border px-3 py-2 font-mono ${memoryColor}`}>
+        Est. Memory: {estimatedMB < 1 ? estimatedMB.toFixed(2) : estimatedMB.toFixed(0)} MB
+        <span className="ml-2 opacity-75">({memoryLabel})</span>
       </div>
 
       {/* Control Buttons */}
