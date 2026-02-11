@@ -192,12 +192,12 @@ export function IterationExplorer({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="card w-80 flex-shrink-0 space-y-4 h-full overflow-y-auto">
       <h2 className="text-lg font-bold text-gray-200 border-b border-border pb-2">
         Iteration Explorer
       </h2>
 
-      {/* Game Selection Dropdown */}
+      {/* Game View Controls */}
       <div className="space-y-2">
         <label className="block text-sm text-muted">View Game</label>
         <select
@@ -266,7 +266,7 @@ export function IterationExplorer({
 
       {/* Strategy Probabilities (when specific game selected) */}
       {currentStrategies && (
-        <CollapsibleSection title={`Strategy Probabilities`} defaultOpen={true}>
+        <CollapsibleSection title="Strategy Probabilities" defaultOpen={true}>
           <div className="space-y-3">
             {/* Row Player Strategies */}
             <div>
@@ -301,9 +301,9 @@ export function IterationExplorer({
         </CollapsibleSection>
       )}
 
-      {/* Matrix Display (when specific game selected) */}
+      {/* Payoff Matrix (when specific game selected) */}
       {selectedMatrix && (
-        <CollapsibleSection title={`Game ${explorerGameIndex + 1} Matrix (${selectedMatrix.length}×${selectedMatrix[0].length})`}>
+        <CollapsibleSection title={`Payoff Matrix — Game ${explorerGameIndex + 1} (${selectedMatrix.length}×${selectedMatrix[0].length})`}>
           <div className="overflow-x-auto">
             <table className="text-xs font-mono w-full">
               <thead>
@@ -372,7 +372,7 @@ export function IterationExplorer({
         </div>
       </CollapsibleSection>
 
-      {/* Summary Statistics */}
+      {/* Summary Statistics (only when completed) */}
       {state.summary && (
         <CollapsibleSection title="Summary Statistics">
           <div className="space-y-3">

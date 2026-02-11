@@ -91,7 +91,7 @@ function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Header */}
       <header className="border-b border-border bg-surface">
         <div className="px-4 py-3 flex items-center justify-between">
@@ -146,12 +146,12 @@ function App() {
         )}
       </header>
 
-      {/* Main Content - Fixed width panels */}
-      <main className="px-4 py-4">
-        <div className="flex gap-4">
+      {/* Main Content - 3-column layout */}
+      <main className="flex-1 min-h-0 px-4 py-4">
+        <div className="flex gap-4 h-full">
           {/* Left Panel - Controls */}
-          <div className={`flex-shrink-0 ${config.mode === 'custom' ? 'w-96' : 'w-72'}`}>
-            <div className="sticky top-4">
+          <div className="flex-shrink-0 h-full flex flex-col gap-4">
+            <div className="flex-1 min-h-0">
               <ControlsPanel
                 config={config}
                 onConfigChange={handleConfigChange}
@@ -166,63 +166,63 @@ function App() {
                 error={state.error ?? undefined}
                 gameCount={gameCount}
               />
-
-              {/* Matrix Editor (for custom mode) */}
-              {config.mode === "custom" && (
-                <div className="card mt-4">
-                  <h3 className="text-sm font-bold text-gray-300 mb-3">
-                    Custom Matrix
-                  </h3>
-                  <MatrixEditor
-                    matrix={config.customMatrix}
-                    onChange={(matrix) => handleConfigChange({ customMatrix: matrix })}
-                    disabled={isRunning}
-                  />
-                </div>
-              )}
             </div>
+
+            {/* Matrix Editor (for custom mode) */}
+            {config.mode === "custom" && (
+              <div className="card w-80 flex-shrink-0">
+                <h3 className="text-sm font-bold text-gray-300 mb-3">
+                  Custom Matrix
+                </h3>
+                <MatrixEditor
+                  matrix={config.customMatrix}
+                  onChange={(matrix) => handleConfigChange({ customMatrix: matrix })}
+                  disabled={isRunning}
+                />
+              </div>
+            )}
           </div>
 
           {/* Center Panel - Charts */}
-          <div className="flex-1 min-w-0">
-            <div className="card">
-              <h2 className="text-lg font-bold text-gray-200 mb-4">
+          <div className="flex-1 min-w-0 flex flex-col">
+            <div className="card h-full flex flex-col overflow-y-auto">
+              <h2 className="text-lg font-bold text-gray-200 border-b border-border pb-2 mb-4 flex-shrink-0">
                 Duality Gap Convergence
               </h2>
-              <PlotPanel
-                iterations={state.iterations}
-                allGaps={state.allGaps}
-                avgGaps={state.avgGaps}
-                plotMode={config.plotMode}
-                selectedGame={config.selectedGame}
-                logScale={config.logScale}
-                showLegend={config.showLegend}
-                onGameSelect={handleGameSelect}
-                visibleGames={visibleGames}
-                onVisibleGamesChange={setVisibleGames}
-                selectedIterationIndex={selectedIterationIndex}
-              />
+              <div className="flex-1 min-h-0">
+                <PlotPanel
+                  iterations={state.iterations}
+                  allGaps={state.allGaps}
+                  avgGaps={state.avgGaps}
+                  plotMode={config.plotMode}
+                  selectedGame={config.selectedGame}
+                  logScale={config.logScale}
+                  showLegend={config.showLegend}
+                  onGameSelect={handleGameSelect}
+                  visibleGames={visibleGames}
+                  onVisibleGamesChange={setVisibleGames}
+                  selectedIterationIndex={selectedIterationIndex}
+                />
+              </div>
             </div>
           </div>
 
-          {/* Right Panel - Status & Explorer */}
-          <div className="w-80 flex-shrink-0">
-            <div className="sticky top-4">
-              <IterationExplorer
-                state={state}
-                selectedIterationIndex={selectedIterationIndex}
-                onIterationChange={setSelectedIterationIndex}
-                explorerGameIndex={explorerGameIndex}
-                onGameChange={setExplorerGameIndex}
-                isCompleted={isCompleted}
-              />
-            </div>
+          {/* Right Panel - Iteration Explorer */}
+          <div className="flex-shrink-0 h-full">
+            <IterationExplorer
+              state={state}
+              selectedIterationIndex={selectedIterationIndex}
+              onIterationChange={setSelectedIterationIndex}
+              explorerGameIndex={explorerGameIndex}
+              onGameChange={setExplorerGameIndex}
+              isCompleted={isCompleted}
+            />
           </div>
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-border py-3 text-center text-xs text-muted">
+      <footer className="flex-shrink-0 border-t border-border py-3 text-center text-xs text-muted">
         Browser-based simulation • All computations run locally on your device
       </footer>
     </div>
