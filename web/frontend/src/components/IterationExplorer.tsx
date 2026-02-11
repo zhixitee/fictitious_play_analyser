@@ -361,7 +361,7 @@ export function IterationExplorer({
             </button>
           )}
         </div>
-        <div className="bg-gray-800 rounded p-2 h-24 overflow-y-auto font-mono text-xs text-gray-300">
+        <div className="bg-surface rounded p-2 h-24 overflow-y-auto font-mono text-xs text-gray-300">
           {state.logs.length === 0 ? (
             <span className="text-muted">No logs yet...</span>
           ) : (
