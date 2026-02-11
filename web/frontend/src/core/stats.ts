@@ -52,7 +52,7 @@ export function std(arr: number[]): number {
 }
 
 /**
- * Compute Karlin's ratio: gap × √iteration
+ * Compute Karlin's ratio: gap * sqrt(iteration)
  * According to Robinson (1951), this should converge to a constant
  */
 export function karlinRatio(gap: number, iteration: number): number {
@@ -60,7 +60,7 @@ export function karlinRatio(gap: number, iteration: number): number {
 }
 
 /**
- * Compute theoretical bound: 1/√T
+ * Compute theoretical bound: 1/sqrt(T)
  */
 export function theoreticalBound(iteration: number): number {
   return 1 / Math.sqrt(iteration);

@@ -1,6 +1,6 @@
 // New browser-based components
 export { ControlsPanel } from './ControlsPanel';
-export type { ControlsConfig, PlotMode } from './ControlsPanel';
+export type { ControlsConfig } from './ControlsPanel';
 export { PlotPanel } from './PlotPanel';
 export { MatrixEditor } from './MatrixEditorNew';
 export { StatusPanel } from './StatusPanel';

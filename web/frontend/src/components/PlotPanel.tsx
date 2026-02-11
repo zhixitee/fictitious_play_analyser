@@ -3,8 +3,8 @@
  * 
  * Recharts-based visualizations for convergence analysis:
  * - Main Duality Gap chart (large)
- * - Convergence Rate (α) chart (side-by-side with ratio)
- * - Gap / Karlin Bound Ratio chart (side-by-side with α)
+ * - Convergence Rate (alpha) chart (side-by-side with ratio)
+ * - Gap / Karlin Bound Ratio chart (side-by-side with alpha)
  * - Vertical reference line synced to selected iteration
  * - Checkbox-based game visibility
  */
@@ -21,7 +21,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import type { PlotMode } from "./ControlsPanel";
+
 
 // Color palette for games
 const GAME_COLORS = [
@@ -41,11 +41,9 @@ interface PlotPanelProps {
   iterations: number[];
   allGaps: number[][];
   avgGaps: number[];
-  plotMode: PlotMode;
-  selectedGame: number | null;
+  explorerGameIndex: number; // -1 = all games, >= 0 = specific game
   logScale: boolean;
   showLegend: boolean;
-  onGameSelect?: (gameIndex: number | null) => void;
   visibleGames?: boolean[];
   onVisibleGamesChange?: (visibleGames: boolean[]) => void;
   selectedIterationIndex?: number;
@@ -61,15 +59,14 @@ export function PlotPanel({
   iterations,
   allGaps,
   avgGaps,
-  plotMode,
-  selectedGame,
+  explorerGameIndex,
   logScale,
   showLegend,
-  onGameSelect,
   visibleGames,
   onVisibleGamesChange,
   selectedIterationIndex = 0,
 }: PlotPanelProps) {
+  const selectedGame = explorerGameIndex >= 0 ? explorerGameIndex : null;
   const gameCount = allGaps.length;
   
   // Initialize visible games state if not provided
@@ -135,7 +132,7 @@ export function PlotPanel({
     return data;
   }, [iterations, allGaps, avgGaps, gameCount]);
 
-  // Build convergence rate (α) data
+  // Build convergence rate (alpha) data
   const convergenceRateData = useMemo(() => {
     if (iterations.length < 20) return [];
 
@@ -168,7 +165,7 @@ export function PlotPanel({
         }
       }
 
-      // Average α
+      // Average alpha
       const visibleAlphas: number[] = [];
       for (let g = 0; g < gameCount; g++) {
         const val = point[`game${g + 1}`];
@@ -269,15 +266,15 @@ export function PlotPanel({
     return (
       <div className="flex items-center justify-center text-muted" style={{ height: 400 }}>
         <div className="text-center">
-          <div className="text-4xl mb-2">📊</div>
+          <div className="text-4xl mb-2">Chart</div>
           <div>Start a simulation to see the convergence charts</div>
         </div>
       </div>
     );
   }
 
-  const showIndividual = plotMode === "all" || plotMode === "selected";
-  const showAverage = plotMode === "all" || plotMode === "average";
+  const showIndividual = true;
+  const showAverage = explorerGameIndex === -1;
 
   // Common chart configuration
   const commonTooltipStyle = {
@@ -376,7 +373,7 @@ export function PlotPanel({
             {showIndividual &&
               Array.from({ length: gameCount }, (_, i) => {
                 if (!effectiveVisibleGames[i]) return null;
-                if (plotMode === "selected" && selectedGame !== i) return null;
+                if (selectedGame !== null && selectedGame !== i) return null;
                 return (
                   <Line
                     key={`game${i + 1}`}
@@ -410,7 +407,7 @@ export function PlotPanel({
               strokeWidth={1.5}
               strokeDasharray="8 4"
               dot={false}
-              name="Karlin O(T⁻¹/²)"
+              name="Karlin O(T^-1/2)"
               opacity={0.8}
             />
 
@@ -422,7 +419,7 @@ export function PlotPanel({
               strokeWidth={1.5}
               strokeDasharray="4 4"
               dot={false}
-              name="Wang Ω(T⁻¹/³)"
+              name="Wang O(T^-1/3)"
               opacity={0.8}
             />
           </LineChart>
@@ -431,10 +428,10 @@ export function PlotPanel({
 
       {/* Bottom charts - side by side */}
       <div className="flex gap-4 justify-center">
-        {/* Convergence Rate (α) Chart */}
+        {/* Convergence Rate (alpha) Chart */}
         <div className="flex-1 min-w-0 max-w-[50%]">
           <div className="text-xs font-medium text-gray-400 mb-1 px-2">
-            Convergence Rate (α)
+            Convergence Rate (alpha)
           </div>
           <div style={{ height: 180 }}>
             {convergenceRateData.length > 0 ? (
@@ -457,7 +454,7 @@ export function PlotPanel({
                     stroke="#707070"
                     tickFormatter={(v) => v.toFixed(1)}
                     fontSize={9}
-                    label={{ value: 'α', angle: -90, position: 'insideLeft', style: { fill: '#707070', fontSize: 9 } }}
+                    label={{ value: 'alpha', angle: -90, position: 'insideLeft', style: { fill: '#707070', fontSize: 9 } }}
                   />
                   <Tooltip
                     {...commonTooltipStyle}
@@ -495,7 +492,7 @@ export function PlotPanel({
                   {showIndividual &&
                     Array.from({ length: gameCount }, (_, i) => {
                       if (!effectiveVisibleGames[i]) return null;
-                      if (plotMode === "selected" && selectedGame !== i) return null;
+                      if (selectedGame !== null && selectedGame !== i) return null;
                       return (
                         <Line
                           key={`game${i + 1}`}
@@ -584,7 +581,7 @@ export function PlotPanel({
                   {showIndividual &&
                     Array.from({ length: gameCount }, (_, i) => {
                       if (!effectiveVisibleGames[i]) return null;
-                      if (plotMode === "selected" && selectedGame !== i) return null;
+                      if (selectedGame !== null && selectedGame !== i) return null;
                       return (
                         <Line
                           key={`game${i + 1}`}

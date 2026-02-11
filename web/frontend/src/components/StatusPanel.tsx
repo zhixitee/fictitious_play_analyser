@@ -140,7 +140,7 @@ export function StatusPanel({
 
           {/* Karlin Ratio Statistics */}
           <div className="pt-2 border-t border-border">
-            <h4 className="text-xs font-bold text-gray-400 mb-2">Karlin&apos;s Ratio (gap × √T)</h4>
+            <h4 className="text-xs font-bold text-gray-400 mb-2">Karlin&apos;s Ratio (gap * sqrt(T))</h4>
             <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
               <span className="text-muted">Mean:</span>
               <span className="font-mono">{summary.karlinStats.mean.toFixed(4)}</span>

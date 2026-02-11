@@ -100,7 +100,7 @@ export function ControlPanel({
                     : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                 }`}
               >
-                {size}×{size}
+                {size}x{size}
               </button>
             ))}
           </div>
@@ -148,7 +148,7 @@ export function ControlPanel({
               disabled={isRunning}
               className="text-xs bg-gray-700 px-2 py-1 rounded hover:bg-gray-600"
             >
-              2×2
+              2x2
             </button>
             <button
               onClick={() =>
@@ -161,7 +161,7 @@ export function ControlPanel({
               disabled={isRunning}
               className="text-xs bg-gray-700 px-2 py-1 rounded hover:bg-gray-600"
             >
-              RPS 3×3
+              RPS 3x3
             </button>
           </div>
         </div>
@@ -304,7 +304,7 @@ export function ControlPanel({
             <div>
               <div className="text-muted">Avg Gap</div>
               <div className="font-mono text-gray-200">
-                {state.avgGap > 0 ? state.avgGap.toExponential(2) : '—'}
+                {state.avgGap > 0 ? state.avgGap.toExponential(2) : '-'}
               </div>
             </div>
           </div>

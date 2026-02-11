@@ -116,7 +116,7 @@ export function generateMarkdownReport(
     "## Karlin's Ratio Statistics",
     "",
     "According to Robinson (1951), fictitious play converges at rate O(T^{-1/2}) for zero-sum games.",
-    "Karlin's ratio (gap × √T) should converge to a constant.",
+    "Karlin's ratio (gap * sqrt(T)) should converge to a constant.",
     "",
     "| Metric | Value |",
     "|--------|-------|",
@@ -135,7 +135,7 @@ export function generateMarkdownReport(
     lines.push("");
     
     for (let i = 0; i < matrices.length; i++) {
-      lines.push(`### Game ${i + 1} (${matrices[i].length}×${matrices[i][0].length})`);
+      lines.push(`### Game ${i + 1} (${matrices[i].length}x${matrices[i][0].length})`);
       lines.push("");
       lines.push("```");
       for (const row of matrices[i]) {

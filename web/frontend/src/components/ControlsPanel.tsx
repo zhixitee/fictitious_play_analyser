@@ -14,8 +14,6 @@ import React, { useState } from "react";
 import { Play, Square, RotateCcw, Dice5 } from "lucide-react";
 import type { SimMode } from "../workers/sim.worker";
 
-export type PlotMode = "all" | "average" | "selected";
-
 export interface ControlsConfig {
   mode: SimMode;
   batchSize: number;
@@ -27,8 +25,6 @@ export interface ControlsConfig {
   customMatrix: number[][];
   logScale: boolean;
   showLegend: boolean;
-  plotMode: PlotMode;
-  selectedGame: number | null;
 }
 
 interface ControlsPanelProps {
@@ -121,7 +117,7 @@ export function ControlsPanel({
           >
             {SIZES.map((size) => (
               <option key={size} value={size}>
-                {size}×{size}
+                {size}x{size}
               </option>
             ))}
           </select>
@@ -288,34 +284,6 @@ export function ControlsPanel({
         </label>
       </div>
 
-      {/* Plot Mode */}
-      <div className="space-y-2">
-        <label className="block text-sm text-muted">Plot Mode</label>
-        <select
-          value={config.plotMode}
-          onChange={(e) => onConfigChange({ plotMode: e.target.value as PlotMode })}
-          className="w-full"
-        >
-          <option value="all">All Games</option>
-          <option value="average">Average Only</option>
-          <option value="selected">Selected Game Only</option>
-        </select>
-        
-        {config.plotMode === "selected" && gameCount > 0 && (
-          <select
-            value={config.selectedGame ?? 0}
-            onChange={(e) => onConfigChange({ selectedGame: parseInt(e.target.value) })}
-            className="w-full mt-2"
-          >
-            {Array.from({ length: gameCount }, (_, i) => (
-              <option key={i} value={i}>
-                Game {i + 1}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-
       {/* Control Buttons */}
       <div className="flex gap-2 pt-4 border-t border-border">
         {!isRunning ? (
@@ -381,7 +349,7 @@ export function ControlsPanel({
             <div>
               <div className="text-muted">Avg Gap</div>
               <div className="font-mono text-gray-200">
-                {avgGap > 0 ? avgGap.toExponential(2) : "—"}
+                {avgGap > 0 ? avgGap.toExponential(2) : "-"}
               </div>
             </div>
           </div>

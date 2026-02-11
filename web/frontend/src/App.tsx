@@ -15,7 +15,7 @@ import {
   PlotPanel,
   MatrixEditor,
 } from "./components";
-import type { ControlsConfig, PlotMode } from "./components/ControlsPanel";
+import type { ControlsConfig } from "./components/ControlsPanel";
 import type { SimMode } from "./workers/sim.worker";
 import { getRPSGame } from "./core/games";
 import { IterationExplorer } from "./components/IterationExplorer";
@@ -32,8 +32,6 @@ const defaultConfig: ControlsConfig = {
   customMatrix: getRPSGame(),
   logScale: true,
   showLegend: true,
-  plotMode: "all" as PlotMode,
-  selectedGame: null,
 };
 
 function App() {
@@ -85,11 +83,6 @@ function App() {
     start(config);
   }, [start, config]);
 
-  // Handle game selection
-  const handleGameSelect = useCallback((gameIndex: number | null) => {
-    setConfig((prev) => ({ ...prev, selectedGame: gameIndex }));
-  }, []);
-
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Header */}
@@ -134,8 +127,8 @@ function App() {
                 Fictitious Play converges at rate O(T<sup>-1/2</sup>) for zero-sum games.
               </p>
               <p className="mt-2">
-                <strong>Karlin&apos;s Ratio</strong> (gap × √T) should converge to a constant
-                as iterations increase, bounded by the theoretical O(1/√T) rate.
+                <strong>Karlin&apos;s Ratio</strong> (gap * sqrt(T)) should converge to a constant
+                as iterations increase, bounded by the theoretical O(1/sqrt(T)) rate.
               </p>
               <p className="mt-2">
                 <strong>All simulations run entirely in your browser</strong> using Web Workers.
@@ -194,11 +187,9 @@ function App() {
                   iterations={state.iterations}
                   allGaps={state.allGaps}
                   avgGaps={state.avgGaps}
-                  plotMode={config.plotMode}
-                  selectedGame={config.selectedGame}
+                  explorerGameIndex={explorerGameIndex}
                   logScale={config.logScale}
                   showLegend={config.showLegend}
-                  onGameSelect={handleGameSelect}
                   visibleGames={visibleGames}
                   onVisibleGamesChange={setVisibleGames}
                   selectedIterationIndex={selectedIterationIndex}
@@ -223,7 +214,7 @@ function App() {
 
       {/* Footer */}
       <footer className="flex-shrink-0 border-t border-border py-3 text-center text-xs text-muted">
-        Browser-based simulation • All computations run locally on your device
+        Browser-based simulation - All computations run locally on your device
       </footer>
     </div>
   );

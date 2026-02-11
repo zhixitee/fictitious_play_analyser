@@ -46,7 +46,7 @@ export function createSolver(matrix: Matrix): SolverState {
 }
 
 /**
- * Compute dot product: A[row] · v
+ * Compute dot product: A[row] . v
  */
 function dotRow(A: Matrix, row: number, v: Float64Array): number {
   let s = 0;
@@ -58,7 +58,7 @@ function dotRow(A: Matrix, row: number, v: Float64Array): number {
 }
 
 /**
- * Compute dot product: u^T · A[:, col]
+ * Compute dot product: u^T . A[:, col]
  */
 function dotCol(u: Float64Array, A: Matrix, col: number): number {
   let s = 0;

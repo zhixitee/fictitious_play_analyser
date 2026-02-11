@@ -56,7 +56,7 @@ export function GapChart({
     return data.map(point => {
       const enhanced: Record<string, number> = { ...point };
       
-      // Add theoretical bound: 1/√t
+      // Add theoretical bound: 1/sqrt(t)
       if (point.iteration > 0) {
         enhanced.theoretical = 1 / Math.sqrt(point.iteration);
       }
@@ -82,7 +82,7 @@ export function GapChart({
     return (
       <div className="chart-container flex items-center justify-center text-muted">
         <div className="text-center">
-          <div className="text-4xl mb-2">📊</div>
+          <div className="text-4xl mb-2">Graph</div>
           <div>Start a simulation to see the convergence chart</div>
         </div>
       </div>
@@ -191,7 +191,7 @@ export function GapChart({
               strokeWidth={1}
               strokeDasharray="10 5"
               dot={false}
-              name="O(1/√T)"
+              name="O(1/sqrt(T))"
               opacity={0.7}
             />
           )}

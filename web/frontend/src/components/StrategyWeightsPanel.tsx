@@ -149,7 +149,7 @@ export function StrategyWeightsPanel({
     };
   }, [currentGap, avgGap, currentIterationValue, showIndividualGames]);
   
-  // Calculate convergence rate (α)
+  // Calculate convergence rate (alpha)
   const convergenceRate = useMemo(() => {
     if (!hasData || iterIndex < 10) return null;
     
@@ -270,12 +270,12 @@ export function StrategyWeightsPanel({
       
       {/* Header */}
       <div className="text-center py-2 bg-gray-800 rounded text-sm font-medium text-gray-200">
-        {showIndividualGames ? `Game ${selectedGame + 1}` : 'Average'} • Iteration {currentIterationValue.toLocaleString()}
+        {showIndividualGames ? `Game ${selectedGame + 1}` : 'Average'} - Iteration {currentIterationValue.toLocaleString()}
       </div>
       
       {/* Payoff Matrix */}
       {showIndividualGames && matrix && (
-        <CollapsibleSection title={`Payoff Matrix (${matrix.length}×${matrix[0]?.length || 0})`}>
+        <CollapsibleSection title={`Payoff Matrix (${matrix.length}x${matrix[0]?.length || 0})`}>
           <div className="overflow-x-auto">
             <table className="text-xs w-full">
               <thead>
@@ -370,7 +370,7 @@ export function StrategyWeightsPanel({
         <CollapsibleSection title="Convergence Rate">
           <div className="space-y-1 text-xs">
             <div className="flex justify-between">
-              <span className="text-gray-400">{showIndividualGames ? 'This Game' : 'Batch Mean'} (α):</span>
+              <span className="text-gray-400">{showIndividualGames ? 'This Game' : 'Batch Mean'} (alpha):</span>
               <span className="font-mono text-gray-200">{convergenceRate.toFixed(4)}</span>
             </div>
             

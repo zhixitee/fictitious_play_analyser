@@ -120,7 +120,7 @@ export function IterationExplorer({
     const wangBound = 1 / Math.pow(t, 1/3);
     const gapKarlinRatio = gap / karlinBound;
     const gapWangRatio = gap / wangBound;
-    const karlinRatio = gap * Math.sqrt(t); // gap × √T
+    const karlinRatio = gap * Math.sqrt(t); // gap * sqrt(T)
     
     return {
       gap,
@@ -246,7 +246,7 @@ export function IterationExplorer({
             <span className="text-muted">Duality Gap:</span>
             <span className="font-mono text-gray-300">{metrics.gap.toExponential(4)}</span>
             
-            <span className="text-muted">Karlin Ratio (gap×√T):</span>
+            <span className="text-muted">Karlin Ratio (gap*sqrt(T)):</span>
             <span className="font-mono text-gray-300">{metrics.karlinRatio.toFixed(4)}</span>
             
             <span className="text-muted">Gap / Karlin Bound:</span>
@@ -255,10 +255,10 @@ export function IterationExplorer({
             <span className="text-muted">Gap / Wang Bound:</span>
             <span className="font-mono text-gray-300">{metrics.gapWangRatio.toFixed(4)}</span>
             
-            <span className="text-muted">Karlin Bound (1/√T):</span>
+            <span className="text-muted">Karlin Bound (1/sqrt(T)):</span>
             <span className="font-mono text-gray-300">{metrics.karlinBound.toExponential(4)}</span>
             
-            <span className="text-muted">Wang Bound (1/T^⅓):</span>
+            <span className="text-muted">Wang Bound (1/T^(1/3)):</span>
             <span className="font-mono text-gray-300">{metrics.wangBound.toExponential(4)}</span>
           </div>
         </CollapsibleSection>
@@ -303,7 +303,7 @@ export function IterationExplorer({
 
       {/* Payoff Matrix (when specific game selected) */}
       {selectedMatrix && (
-        <CollapsibleSection title={`Payoff Matrix — Game ${explorerGameIndex + 1} (${selectedMatrix.length}×${selectedMatrix[0].length})`}>
+        <CollapsibleSection title={`Payoff Matrix - Game ${explorerGameIndex + 1} (${selectedMatrix.length}x${selectedMatrix[0].length})`}>
           <div className="overflow-x-auto">
             <table className="text-xs font-mono w-full">
               <thead>
@@ -408,7 +408,7 @@ export function IterationExplorer({
 
             {/* Karlin Ratio Statistics */}
             <div className="pt-2 border-t border-border">
-              <h4 className="text-xs font-bold text-gray-400 mb-2">Karlin&apos;s Ratio (gap × √T)</h4>
+              <h4 className="text-xs font-bold text-gray-400 mb-2">Karlin&apos;s Ratio (gap * sqrt(T))</h4>
               <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
                 <span className="text-muted">Mean:</span>
                 <span className="font-mono">{state.summary.karlinStats.mean.toFixed(4)}</span>

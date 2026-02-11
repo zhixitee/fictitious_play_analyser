@@ -75,7 +75,7 @@ export function ProgressDisplay({ state }: ProgressDisplayProps) {
         <div>
           <div className="text-muted">Avg Gap</div>
           <div className="font-mono text-lg">
-            {avgGap > 0 ? formatScientific(avgGap) : '—'}
+            {avgGap > 0 ? formatScientific(avgGap) : '-'}
           </div>
         </div>
       </div>
@@ -146,7 +146,7 @@ function SummaryTable({ summary }: { summary: JobSummary }) {
       </div>
 
       <div className="text-xs text-muted border-t border-border pt-2 mt-2">
-        Karlin's Ratio (gap × √T)
+        Karlin's Ratio (gap * sqrt(T))
       </div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
         <div className="text-muted">Mean</div>

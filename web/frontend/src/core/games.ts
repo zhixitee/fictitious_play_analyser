@@ -90,7 +90,7 @@ export function getDiagonalGame(n: number): Matrix {
 }
 
 /**
- * Wang (2025) construction matrix (10×10)
+ * Wang (2025) construction matrix (10x10)
  * 
  * This is a carefully constructed game that exhibits interesting
  * convergence properties for fictitious play analysis.
@@ -110,10 +110,10 @@ export function getWang2025(): Matrix {
     [75, 25, 50],
   ].map(row => row.map(x => (-1 / 900) * x));
 
-  // Build 9×9 block matrix M9
+  // Build 9x9 block matrix M9
   const M9 = zeros(9, 9);
 
-  // Helper to write 3×3 block at (bi, bj)
+  // Helper to write 3x3 block at (bi, bj)
   const put3 = (bi: number, bj: number, X: Matrix) => {
     for (let i = 0; i < 3; i++) {
       for (let j = 0; j < 3; j++) {
@@ -125,7 +125,7 @@ export function getWang2025(): Matrix {
   // Negate matrix helper
   const neg = (X: Matrix) => X.map(r => r.map(v => -v));
 
-  // Fill the 3×3 block structure
+  // Fill the 3x3 block structure
   put3(0, 0, A_rps);
   put3(0, 1, B);
   put3(0, 2, neg(B));
@@ -149,7 +149,7 @@ export function getWang2025(): Matrix {
   const add = [2 * delta, delta, 0, 2 * delta, delta, 0, 2 * delta, delta, 0];
   const U0_hat = U0.map((v, i) => v + base + add[i]);
 
-  // Build final 10×10 matrix
+  // Build final 10x10 matrix
   const M10 = zeros(10, 10);
 
   // Top row (0, 1:) = -U0_hat
@@ -162,7 +162,7 @@ export function getWang2025(): Matrix {
     M10[i][0] = U0_hat[i - 1];
   }
 
-  // Bottom-right 9×9 is M9
+  // Bottom-right 9x9 is M9
   for (let i = 0; i < 9; i++) {
     for (let j = 0; j < 9; j++) {
       M10[i + 1][j + 1] = M9[i][j];
@@ -177,7 +177,7 @@ export function getWang2025(): Matrix {
  */
 export function validateMatrix(M: Matrix): { valid: boolean; error?: string } {
   if (!M || M.length < 2) {
-    return { valid: false, error: "Matrix must be at least 2×2" };
+    return { valid: false, error: "Matrix must be at least 2x2" };
   }
   
   const n = M.length;

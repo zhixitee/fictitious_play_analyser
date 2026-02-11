@@ -79,7 +79,7 @@ export function MatrixEditor({ matrix, onChange, disabled }: MatrixEditorProps) 
           >
             {[2, 3, 4, 5, 6, 7, 8, 9, 10].map((size) => (
               <option key={size} value={size}>
-                {size}×{size}
+                {size}x{size}
               </option>
             ))}
           </select>
@@ -126,7 +126,7 @@ export function MatrixEditor({ matrix, onChange, disabled }: MatrixEditorProps) 
           disabled={disabled}
           className="text-xs bg-gray-700 px-2 py-1 rounded hover:bg-gray-600 transition-colors"
         >
-          RPS 3×3
+          RPS 3x3
         </button>
         <button
           onClick={() => applyTemplate("diagonal")}
