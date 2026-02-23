@@ -35,12 +35,19 @@ export function ControlPanel({
     [0, -1],
     [1, 0],
   ]);
-  const [batchSize, setBatchSize] = useState(DEFAULT_CONFIG.batch_size);
+  const [batchSize, setBatchSize] = useState<number | ''>('');
+  const [batchSizeWarning, setBatchSizeWarning] = useState(false);
 
   const handleStart = () => {
+    const effectiveBatch = (batchSize === '' || batchSize === 0) ? 1 : batchSize;
+    if (batchSize === '' || batchSize === 0) {
+      setBatchSize(1);
+    }
+    setBatchSizeWarning(false);
+
     const config: Partial<SimulationConfig> = {
       mode,
-      batch_size: batchSize,
+      batch_size: effectiveBatch,
       iterations,
       chunk_size: chunkSize,
       seed,
@@ -173,12 +180,26 @@ export function ControlPanel({
         <input
           type="number"
           value={batchSize}
-          onChange={e => setBatchSize(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+          onChange={e => {
+            const raw = e.target.value;
+            if (raw === '') {
+              setBatchSize('');
+            } else {
+              const num = parseInt(raw);
+              if (!isNaN(num)) {
+                setBatchSize(Math.max(0, num) || '');
+              }
+            }
+            setBatchSizeWarning(false);
+          }}
           disabled={isRunning}
-          min={1}
-          max={10}
-          className="w-full"
+          min={0}
+          placeholder="Enter batch size"
+          className={`w-full ${batchSizeWarning ? 'ring-2 ring-red-500' : ''}`}
         />
+        {batchSizeWarning && (
+          <p className="text-xs text-red-400">Batch size is required before starting.</p>
+        )}
       </div>
 
       {/* Iterations */}

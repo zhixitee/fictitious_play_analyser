@@ -54,7 +54,7 @@ function App() {
   } = useWorkerSimulation();
 
   // Update visible games when game count changes
-  const gameCount = state.matrices.length || config.batchSize;
+  const gameCount = state.matrices.length || (config.batchSize || 1);
   React.useEffect(() => {
     if (visibleGames.length !== gameCount) {
       setVisibleGames(Array(gameCount).fill(true));
@@ -88,16 +88,23 @@ function App() {
     setConfig((prev) => ({ ...prev, ...updates }));
   }, []);
 
-  // Handle start
+  // Handle start — default batchSize to 1 if empty
   const handleStart = useCallback(() => {
     setSelectedIterationIndex(0);
     setExplorerGameIndex(-1);
-    if (config.seed !== null) {
+    const effectiveConfig = {
+      ...config,
+      batchSize: config.batchSize === '' ? 1 : config.batchSize,
+    };
+    if (config.batchSize === '') {
+      setConfig((prev) => ({ ...prev, batchSize: 1 }));
+    }
+    if (effectiveConfig.seed !== null) {
       const newSeed = Math.floor(Math.random() * 100000);
-      setConfig((prev) => ({ ...prev, seed: newSeed }));
-      start({ ...config, seed: newSeed });
+      setConfig((prev) => ({ ...prev, ...effectiveConfig, seed: newSeed }));
+      start({ ...effectiveConfig, seed: newSeed });
     } else {
-      start(config);
+      start(effectiveConfig);
     }
   }, [start, config]);
 

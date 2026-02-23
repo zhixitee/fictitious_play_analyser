@@ -17,7 +17,7 @@ import type { TieBreakingRule, InitializationMode } from "../types/simulation";
 
 /** Estimate peak memory usage based on simulation config */
 function estimateMemoryMB(config: {
-  batchSize: number;
+  batchSize: number | '';
   iterations: number;
   chunkSize: number;
   sizeN: number;
@@ -39,7 +39,7 @@ function estimateMemoryMB(config: {
 
 export interface ControlsConfig {
   mode: SimMode;
-  batchSize: number;
+  batchSize: number | '';
   iterations: number;
   chunkSize: number;
   seed: number | null;
@@ -194,14 +194,21 @@ export function ControlsPanel({
         <input
           type="number"
           value={config.batchSize}
-          onChange={(e) =>
-            onConfigChange({
-              batchSize: Math.max(1, Math.min(MAX_BATCH_SIZE, parseInt(e.target.value) || 1)),
-            })
-          }
+          onChange={(e) => {
+            const raw = e.target.value;
+            if (raw === '') {
+              onConfigChange({ batchSize: '' });
+            } else {
+              const num = parseInt(raw);
+              if (!isNaN(num)) {
+                onConfigChange({ batchSize: Math.max(0, num) || '' });
+              }
+            }
+          }}
           disabled={isRunning || config.mode === "wang" || config.mode === "custom"}
-          min={1}
+          min={0}
           max={MAX_BATCH_SIZE}
+          placeholder="Enter batch size"
           className="w-full"
         />
         {(config.mode === "wang" || config.mode === "custom") && (
