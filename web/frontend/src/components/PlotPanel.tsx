@@ -352,9 +352,7 @@ export function PlotPanel({
   const toggleGameVisibility = (gameIndex: number) => {
     const newVisible = [...effectiveVisibleGames];
     newVisible[gameIndex] = !newVisible[gameIndex];
-    if (newVisible.some(v => v)) {
-      handleVisibleChange(newVisible);
-    }
+    handleVisibleChange(newVisible);
   };
 
   // Format functions

@@ -70,6 +70,15 @@ function App() {
     }
   }, [explorerGameIndex, gameCount]);
 
+  // When a game's visibility is toggled off from the chart panel,
+  // reset the explorer dropdown to "Average" if that game was selected.
+  const handleVisibleGamesChange = useCallback((newVisible: boolean[]) => {
+    setVisibleGames(newVisible);
+    if (explorerGameIndex >= 0 && !newVisible[explorerGameIndex]) {
+      setExplorerGameIndex(-1);
+    }
+  }, [explorerGameIndex]);
+
   // Update selected iteration when simulation progresses
   React.useEffect(() => {
     if (state.iterations.length > 0) {
@@ -225,7 +234,7 @@ function App() {
                       logScale={config.logScale}
                       showLegend={config.showLegend}
                       visibleGames={visibleGames}
-                      onVisibleGamesChange={setVisibleGames}
+                      onVisibleGamesChange={handleVisibleGamesChange}
                       selectedIterationIndex={selectedIterationIndex}
                       bestRowHistory={state.bestRowHistory}
                       bestColHistory={state.bestColHistory}
