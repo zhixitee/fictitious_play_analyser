@@ -211,12 +211,12 @@ function App() {
 
             {/* Center Panel - Charts */}
             <Panel defaultSize="60" minSize="30" id="charts" className="h-full">
-              <div className="h-full overflow-y-auto py-4 px-1">
-                <div className="card h-full flex flex-col">
+              <div className="h-full py-4 px-1">
+                <div className="card h-full flex flex-col overflow-hidden">
                   <h2 className="text-lg font-bold text-gray-200 border-b border-border pb-2 mb-4 flex-shrink-0">
                     Duality Gap Convergence
                   </h2>
-                  <div className="flex-1 min-h-0">
+                  <div className="flex-1 min-h-0 overflow-hidden">
                     <PlotPanel
                       iterations={state.iterations}
                       allGaps={state.allGaps}

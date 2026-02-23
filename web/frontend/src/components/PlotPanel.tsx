@@ -353,7 +353,7 @@ export function PlotPanel({
   // Empty state
   if (iterations.length === 0) {
     return (
-      <div className="flex items-center justify-center text-muted" style={{ height: 400 }}>
+      <div className="flex items-center justify-center text-muted h-full">
         <div className="text-center">
           <div className="text-4xl mb-2">Chart</div>
           <div>Start a simulation to see the convergence charts</div>
@@ -412,7 +412,7 @@ export function PlotPanel({
 
   return (
     <motion.div
-      className="space-y-4"
+      className="flex flex-col gap-4 h-full min-h-0"
       variants={staggerContainer}
       initial="hidden"
       animate="visible"
@@ -420,7 +420,7 @@ export function PlotPanel({
     >
       {/* Game visibility checkboxes */}
       {gameCount > 1 && (
-        <motion.div variants={chartVariants} className="flex flex-wrap items-center gap-3 px-2 py-2 bg-gray-800/50 rounded">
+        <motion.div variants={chartVariants} className="flex flex-wrap items-center gap-3 px-2 py-2 bg-gray-800/50 rounded flex-shrink-0">
           <span className="text-xs text-muted font-medium">Show Games:</span>
           {Array.from({ length: gameCount }, (_, i) => (
             <label
@@ -458,11 +458,11 @@ export function PlotPanel({
       )}
 
       {/* Main Duality Gap Chart */}
-      <motion.div variants={chartVariants}>
+      <motion.div variants={chartVariants} className="flex-[3] min-h-0">
       <ZoomableChart
         isZoomed={zoom.isZoomed}
         onResetZoom={zoomActions.resetZoom}
-        height={350}
+        height="100%"
         title="Duality Gap"
         fullDomain={fullDomain}
         zoomActions={zoomActions}
@@ -585,13 +585,13 @@ export function PlotPanel({
       </motion.div>
 
       {/* Bottom charts - side by side */}
-      <motion.div variants={chartVariants} className="flex gap-4 justify-center">
+      <motion.div variants={chartVariants} className="flex gap-4 justify-center flex-[1.5] min-h-0">
         {/* Convergence Rate (alpha) Chart */}
-        <div className="flex-1 min-w-0 max-w-[50%]">
+        <div className="flex-1 min-w-0 max-w-[50%] min-h-0">
           <ZoomableChart
             isZoomed={zoom.isZoomed}
             onResetZoom={zoomActions.resetZoom}
-            height={180}
+            height="100%"
             title="Convergence Rate (alpha)"
             fullDomain={fullDomain}
             zoomActions={zoomActions}
@@ -682,11 +682,11 @@ export function PlotPanel({
         </div>
 
         {/* Gap / Karlin Bound Ratio Chart */}
-        <div className="flex-1 min-w-0 max-w-[50%]">
+        <div className="flex-1 min-w-0 max-w-[50%] min-h-0">
           <ZoomableChart
             isZoomed={zoom.isZoomed}
             onResetZoom={zoomActions.resetZoom}
-            height={180}
+            height="100%"
             title="Gap / Karlin Bound Ratio"
             fullDomain={fullDomain}
             zoomActions={zoomActions}
@@ -781,7 +781,7 @@ export function PlotPanel({
           : gameCount === 1 ? "Game 1" : `Game 1 (of ${gameCount})`;
         if (!brRow || !brCol) return null;
         return (
-          <motion.div variants={chartVariants}>
+          <motion.div variants={chartVariants} className="flex-[1.5] min-h-0">
           <BestResponseChart
             iterations={iterations}
             bestRowHistory={brRow}

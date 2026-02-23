@@ -20,8 +20,8 @@ interface ZoomableChartProps {
   isZoomed: boolean;
   /** Called when the user clicks "Reset" */
   onResetZoom: () => void;
-  /** Chart height in px */
-  height: number;
+  /** Chart height – px number or CSS string like '100%' */
+  height: number | string;
   /** Optional title (top-left label) */
   title?: string;
   /** Optional right-side legend / badge elements */
@@ -132,10 +132,10 @@ export function ZoomableChart({
   );
 
   return (
-    <div className={`zoomable-chart ${className}`}>
+    <div className={`zoomable-chart h-full flex flex-col ${className}`}>
       {/* Header row */}
       {(title || legend) && (
-        <div className="flex items-center justify-between px-2 mb-1">
+        <div className="flex items-center justify-between px-2 mb-1 flex-shrink-0">
           {title && (
             <div className="text-xs font-semibold text-gray-400 font-mono tracking-wide uppercase">
               {title}
@@ -148,8 +148,8 @@ export function ZoomableChart({
       {/* Chart body – captures wheel + pointer events */}
       <div
         ref={containerRef}
-        className={`relative ${isPanning ? "cursor-grabbing" : isZoomed ? "cursor-grab" : ""}`}
-        style={{ height }}
+        className={`relative flex-1 min-h-0 ${isPanning ? "cursor-grabbing" : isZoomed ? "cursor-grab" : ""}`}
+        style={typeof height === 'number' ? { height } : undefined}
         onWheel={handleWheel}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}

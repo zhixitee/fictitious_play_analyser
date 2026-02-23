@@ -157,7 +157,7 @@ export function BestResponseChart({
     <ZoomableChart
       isZoomed={isZoomed}
       onResetZoom={onResetZoom || (() => {})}
-      height={180}
+      height="100%"
       title={`Best Response Dynamics${gameLabel ? ` -- ${gameLabel}` : ""}`}
       fullDomain={[iterations[0] || 0, fullMax]}
       zoomActions={zoomActions}
