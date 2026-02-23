@@ -368,15 +368,17 @@ export function PlotPanel({
   // Common chart configuration – Hex.tech aesthetic
   const commonTooltipStyle = {
     contentStyle: {
-      backgroundColor: "#161719",
-      border: "1px solid #2e2e32",
+      backgroundColor: "rgba(22, 23, 25, 1)",
+      border: "1px solid #3e3e42",
       borderRadius: "6px",
       fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
       fontSize: 11,
-      padding: "6px 10px",
+      padding: "8px 12px",
+      boxShadow: "0 4px 12px rgba(0, 0, 0, 0.5)",
     },
     labelStyle: { color: "#a0a0a0", fontFamily: "'JetBrains Mono', monospace", fontSize: 10 },
     cursor: { stroke: "#555", strokeWidth: 1 },
+    wrapperStyle: { zIndex: 50, opacity: 1 },
   };
 
   const gridProps = {

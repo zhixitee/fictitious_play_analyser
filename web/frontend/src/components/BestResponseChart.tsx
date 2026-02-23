@@ -210,13 +210,15 @@ export function BestResponseChart({
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: "#161719",
-              border: "1px solid #2e2e32",
+              backgroundColor: "rgba(22, 23, 25, 1)",
+              border: "1px solid #3e3e42",
               borderRadius: "6px",
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 11,
-              padding: "6px 10px",
+              padding: "8px 12px",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.5)",
             }}
+            wrapperStyle={{ zIndex: 50, opacity: 1 }}
             labelStyle={{ color: "#a0a0a0", fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}
             formatter={(value: number, name: string) => [value, name === "row" ? "Row BR" : "Col BR"]}
             labelFormatter={(label) => `Iter: ${Number(label).toLocaleString()}`}
