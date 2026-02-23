@@ -109,6 +109,22 @@ export function PlotPanel({
   // Get selected iteration value for reference line
   const selectedIterationValue = iterations[selectedIterationIndex] || 0;
 
+  /** Find the closest data-array index for a given iteration value (binary search). */
+  const findClosestDataIndex = useCallback((data: ChartDataPoint[], iterValue: number): number | undefined => {
+    if (data.length === 0 || iterValue <= 0) return undefined;
+    let lo = 0, hi = data.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (data[mid].iteration < iterValue) lo = mid + 1;
+      else hi = mid;
+    }
+    // Check if the previous index is closer
+    if (lo > 0 && Math.abs(data[lo - 1].iteration - iterValue) < Math.abs(data[lo].iteration - iterValue)) {
+      return lo - 1;
+    }
+    return lo;
+  }, []);
+
   // ── Synchronized zoom state ──────────────────────────────────────────────
   const [zoom, zoomActions] = useChartZoom();
 
@@ -318,6 +334,20 @@ export function PlotPanel({
     [ratioDataFull, zoom.domain],
   );
 
+  // Compute the tooltip default index for each chart based on the iteration slider
+  const gapTooltipIndex = useMemo(
+    () => findClosestDataIndex(chartData, selectedIterationValue),
+    [chartData, selectedIterationValue, findClosestDataIndex],
+  );
+  const alphaTooltipIndex = useMemo(
+    () => findClosestDataIndex(convergenceRateData, selectedIterationValue),
+    [convergenceRateData, selectedIterationValue, findClosestDataIndex],
+  );
+  const ratioTooltipIndex = useMemo(
+    () => findClosestDataIndex(ratioData, selectedIterationValue),
+    [ratioData, selectedIterationValue, findClosestDataIndex],
+  );
+
   // Toggle game visibility
   const toggleGameVisibility = (gameIndex: number) => {
     const newVisible = [...effectiveVisibleGames];
@@ -491,6 +521,7 @@ export function PlotPanel({
               {...commonTooltipStyle}
               formatter={formatTooltip}
               labelFormatter={(label) => `Iteration ${Number(label).toLocaleString()}`}
+              defaultIndex={gapTooltipIndex}
             />
             {showLegend && <Legend wrapperStyle={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} />}
 
@@ -621,6 +652,7 @@ export function PlotPanel({
                     {...commonTooltipStyle}
                     formatter={formatAlphaTooltip}
                     labelFormatter={(label) => `Iter: ${Number(label).toLocaleString()}`}
+                    defaultIndex={alphaTooltipIndex}
                   />
 
                   {/* Brush selection area */}
@@ -715,6 +747,7 @@ export function PlotPanel({
                     {...commonTooltipStyle}
                     formatter={formatRatioTooltip}
                     labelFormatter={(label) => `Iter: ${Number(label).toLocaleString()}`}
+                    defaultIndex={ratioTooltipIndex}
                   />
 
                   {/* Brush selection area */}
