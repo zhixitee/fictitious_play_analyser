@@ -30,8 +30,8 @@ import { downsampleData, niceIterationTicks, formatIterationTick } from "./chart
 import type { Domain, ZoomActions } from "./charts/useChartZoom";
 
 // Colors for row and column players
-const ROW_COLOR = "#4ade80"; // green
-const COL_COLOR = "#60a5fa"; // blue
+const ROW_COLOR = "#22c55e"; // green
+const COL_COLOR = "#ef4444"; // red
 
 interface BestResponseChartProps {
   iterations: number[];
@@ -111,9 +111,10 @@ export function BestResponseChart({
     const rowPts: DataPoint[] = [];
     const colPts: DataPoint[] = [];
 
+    const OFFSET = 0.22; // vertical offset so row sits slightly above col
     for (let i = 0; i < len; i++) {
-      rowPts.push({ iteration: iterations[i], action: bestRowHistory[i] });
-      colPts.push({ iteration: iterations[i], action: bestColHistory[i] });
+      rowPts.push({ iteration: iterations[i], action: bestRowHistory[i] + OFFSET });
+      colPts.push({ iteration: iterations[i], action: bestColHistory[i] - OFFSET });
     }
 
     return { row: rowPts, col: colPts };
@@ -201,7 +202,7 @@ export function BestResponseChart({
             dataKey="action"
             type="number"
             stroke="#505050"
-            domain={[0, Math.max(matrixSize - 1, 1)]}
+            domain={[-0.3, Math.max(matrixSize - 1, 1) + 0.3]}
             ticks={Array.from({ length: matrixSize }, (_, i) => i)}
             tickFormatter={(v: number) => String(v)}
             fontSize={9}
@@ -220,13 +221,13 @@ export function BestResponseChart({
             }}
             wrapperStyle={{ zIndex: 50, opacity: 1 }}
             labelStyle={{ color: "#a0a0a0", fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}
-            formatter={(value: number, name: string) => [value, name === "row" ? "Row BR" : "Col BR"]}
+            formatter={(value: number, name: string) => [Math.round(value), name === "row" ? "Row BR" : "Col BR"]}
             labelFormatter={(label) => `Iter: ${Number(label).toLocaleString()}`}
           />
 
           {/* Brush selection area */}
           {brushStart != null && brushEnd != null && (
-            <ReferenceArea x1={brushStart} x2={brushEnd} strokeOpacity={0.3} fill="#4ade80" fillOpacity={0.1} />
+            <ReferenceArea x1={brushStart} x2={brushEnd} strokeOpacity={0.3} fill="#22c55e" fillOpacity={0.1} />
           )}
 
           {/* Selected iteration reference line */}
@@ -247,7 +248,7 @@ export function BestResponseChart({
           <Scatter
             data={colData}
             fill={COL_COLOR}
-            opacity={0.4}
+            opacity={0.6}
             name="col"
             dataKey="action"
             shape="diamond"
