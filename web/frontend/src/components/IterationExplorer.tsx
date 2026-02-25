@@ -105,7 +105,7 @@ export function IterationExplorer({
   const currentGap = useMemo(() => {
     if (!hasData) return 0;
     const idx = Math.min(selectedIterationIndex, maxIndex);
-    if (explorerGameIndex === -1) {
+    if (explorerGameIndex === -1 || explorerGameIndex === -2) {
       // Average
       return state.avgGaps[idx] || 0;
     }
@@ -134,14 +134,14 @@ export function IterationExplorer({
   
   // Get matrix for selected game
   const selectedMatrix = useMemo(() => {
-    if (explorerGameIndex === -1 || !hasData) return null;
+    if (explorerGameIndex < 0 || !hasData) return null;
     return state.matrices[explorerGameIndex] || null;
   }, [explorerGameIndex, hasData, state.matrices]);
   
   // Get strategies at current iteration for selected game
   // Strategies are stored per chunk, so find the chunk that corresponds to the current iteration index
   const currentStrategies = useMemo(() => {
-    if (explorerGameIndex === -1 || !hasData) return null;
+    if (explorerGameIndex < 0 || !hasData) return null;
     
     const rowStrats = state.rowStrategies?.[explorerGameIndex];
     const colStrats = state.colStrategies?.[explorerGameIndex];
@@ -206,7 +206,8 @@ export function IterationExplorer({
           className="w-full"
           disabled={!hasData}
         >
-          <option value={-1}>Average (all games)</option>
+          <option value={-1}>All Games</option>
+          <option value={-2}>Average</option>
           {Array.from({ length: gameCount }, (_, i) => (
             <option key={i} value={i}>
               Game {i + 1}

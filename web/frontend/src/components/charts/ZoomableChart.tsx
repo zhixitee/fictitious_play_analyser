@@ -10,7 +10,7 @@
  */
 
 import React, { useRef, useCallback, useState, type ReactNode } from "react";
-import { RotateCcw, Move } from "lucide-react";
+import { RotateCcw, Move, ZoomIn, ZoomOut } from "lucide-react";
 import type { ZoomActions } from "./useChartZoom";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -131,6 +131,25 @@ export function ZoomableChart({
     [isPanning],
   );
 
+  // ── Zoom button handlers ────────────────────────────────────────────────
+  const handleZoomIn = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!zoomActions || !fullDomain) return;
+      zoomActions.zoomAtPoint(0.5, true, fullDomain);
+    },
+    [zoomActions, fullDomain],
+  );
+
+  const handleZoomOut = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!zoomActions || !fullDomain) return;
+      zoomActions.zoomAtPoint(0.5, false, fullDomain);
+    },
+    [zoomActions, fullDomain],
+  );
+
   return (
     <div className={`zoomable-chart h-full flex flex-col ${className}`}>
       {/* Header row */}
@@ -158,26 +177,55 @@ export function ZoomableChart({
       >
         {children}
 
-        {/* Reset zoom button – appears only when zoomed */}
-        {isZoomed && (
+        {/* Zoom controls – bottom-left, fixed size across all charts */}
+        <div className="absolute bottom-2 left-2 z-20 flex items-center gap-1">
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onResetZoom();
-            }}
-            className="absolute bottom-2 left-8 z-20 flex items-center gap-1
-                       px-1.5 py-0.5 rounded text-[10px] font-mono
+            onClick={handleZoomIn}
+            className="flex items-center justify-center w-6 h-6 rounded
+                       text-[10px] font-mono
                        bg-gray-800/70 hover:bg-gray-700/90
                        text-gray-400 hover:text-gray-200
                        border border-gray-600/40 hover:border-gray-500/60
                        backdrop-blur-sm transition-all duration-150
                        select-none cursor-pointer"
-            title="Reset zoom (or scroll to zoom, Shift+drag to pan)"
+            title="Zoom in"
+          >
+            <ZoomIn size={12} />
+          </button>
+          <button
+            onClick={handleZoomOut}
+            disabled={!isZoomed}
+            className="flex items-center justify-center w-6 h-6 rounded
+                       text-[10px] font-mono
+                       bg-gray-800/70 hover:bg-gray-700/90
+                       text-gray-400 hover:text-gray-200
+                       border border-gray-600/40 hover:border-gray-500/60
+                       backdrop-blur-sm transition-all duration-150
+                       select-none cursor-pointer
+                       disabled:opacity-30 disabled:cursor-default"
+            title="Zoom out"
+          >
+            <ZoomOut size={12} />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onResetZoom();
+            }}
+            disabled={!isZoomed}
+            className="flex items-center justify-center w-6 h-6 rounded
+                       text-[10px] font-mono
+                       bg-gray-800/70 hover:bg-gray-700/90
+                       text-gray-400 hover:text-gray-200
+                       border border-gray-600/40 hover:border-gray-500/60
+                       backdrop-blur-sm transition-all duration-150
+                       select-none cursor-pointer
+                       disabled:opacity-30 disabled:cursor-default"
+            title="Reset zoom"
           >
             <RotateCcw size={10} />
-            Reset
           </button>
-        )}
+        </div>
 
         {/* Pan hint icon – subtle indicator when zoomed */}
         {isZoomed && !isPanning && (

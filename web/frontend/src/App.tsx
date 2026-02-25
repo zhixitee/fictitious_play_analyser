@@ -42,7 +42,7 @@ function App() {
   const [showInfo, setShowInfo] = useState(false);
   const [visibleGames, setVisibleGames] = useState<boolean[]>([]);
   const [selectedIterationIndex, setSelectedIterationIndex] = useState<number>(0);
-  const [explorerGameIndex, setExplorerGameIndex] = useState<number>(-1); // -1 = Average
+  const [explorerGameIndex, setExplorerGameIndex] = useState<number>(-1); // -1 = All Games, -2 = Average
 
   const {
     state,
@@ -65,13 +65,15 @@ function App() {
   React.useEffect(() => {
     if (explorerGameIndex === -1) {
       setVisibleGames(Array(gameCount).fill(true));
+    } else if (explorerGameIndex === -2) {
+      setVisibleGames(Array(gameCount).fill(false));
     } else {
       setVisibleGames(Array(gameCount).fill(false).map((_, i) => i === explorerGameIndex));
     }
   }, [explorerGameIndex, gameCount]);
 
   // When a game's visibility is toggled off from the chart panel,
-  // reset the explorer dropdown to "Average" if that game was selected.
+  // reset the explorer dropdown to "All Games" if that game was selected.
   const handleVisibleGamesChange = useCallback((newVisible: boolean[]) => {
     setVisibleGames(newVisible);
     if (explorerGameIndex >= 0 && !newVisible[explorerGameIndex]) {

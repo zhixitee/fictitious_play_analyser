@@ -60,7 +60,7 @@ interface PlotPanelProps {
   iterations: number[];
   allGaps: number[][];
   avgGaps: number[];
-  explorerGameIndex: number; // -1 = all games, >= 0 = specific game
+  explorerGameIndex: number; // -1 = all games, -2 = average only, >= 0 = specific game
   logScale: boolean;
   showLegend: boolean;
   visibleGames?: boolean[];
@@ -93,6 +93,7 @@ export function PlotPanel({
 }: PlotPanelProps) {
   const selectedGame = explorerGameIndex >= 0 ? explorerGameIndex : null;
   const gameCount = allGaps.length;
+  const showAverageOnly = explorerGameIndex === -2;
   
   // Initialize visible games state if not provided
   const [internalVisibleGames, setInternalVisibleGames] = useState<boolean[]>([]);
@@ -390,8 +391,8 @@ export function PlotPanel({
     );
   }
 
-  const showIndividual = true;
-  const showAverage = explorerGameIndex === -1;
+  const showIndividual = !showAverageOnly;
+  const showAverage = explorerGameIndex === -2;
 
   // Common chart configuration – Hex.tech aesthetic
   const commonTooltipStyle = {
