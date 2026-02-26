@@ -123,7 +123,7 @@ function App() {
               <Info size={20} />
             </button>
             <a
-              href="https://github.com"
+              href="https://github.com/zhixitee/convergence"
               target="_blank"
               rel="noopener noreferrer"
               className="text-muted hover:text-white transition-colors"
