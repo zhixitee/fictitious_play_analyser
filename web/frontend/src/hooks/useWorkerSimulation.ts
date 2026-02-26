@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import type { ControlsConfig } from "../components/ControlsPanel";
 import type { SimulationSummary } from "../core/stats";
 import type { Matrix } from "../core/games";
+import type { ValidationViolation } from "../core/solver";
 import type {
   SimConfig,
   WorkerOutMessage,
@@ -27,6 +28,7 @@ export interface SimulationState {
   colStrategies: number[][][];  // [game][chunkIdx][action]
   bestRowHistory: number[][];   // [game][iterIdx]
   bestColHistory: number[][];   // [game][iterIdx]
+  validation: { totalChecks: number; violations: ValidationViolation[] };
 }
 
 const initialState: SimulationState = {
@@ -46,6 +48,7 @@ const initialState: SimulationState = {
   colStrategies: [],
   bestRowHistory: [],
   bestColHistory: [],
+  validation: { totalChecks: 0, violations: [] },
 };
 
 // Mutable store outside React state to avoid GC pressure
@@ -62,8 +65,10 @@ interface SimDataRef {
   colStrategies: number[][][];
   bestRowHistory: number[][];
   bestColHistory: number[][];
-  dirty: boolean;           // true when new data has arrived since last rAF
-  version: number;          // monotonic counter for change detection
+  dirty: boolean;
+  version: number;
+  validationChecks: number;
+  validationViolations: ValidationViolation[];
 }
 
 function createEmptyDataRef(): SimDataRef {
@@ -82,6 +87,8 @@ function createEmptyDataRef(): SimDataRef {
     bestColHistory: [],
     dirty: false,
     version: 0,
+    validationChecks: 0,
+    validationViolations: [],
   };
 }
 
@@ -132,6 +139,7 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
           colStrategies: d.colStrategies,
           bestRowHistory: d.bestRowHistory,
           bestColHistory: d.bestColHistory,
+          validation: { totalChecks: d.validationChecks, violations: d.validationViolations },
         }));
       }
       if (runningRef.current) {
@@ -214,6 +222,14 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
           d.progress = msg.progress;
           d.avgGap = msg.avgGap;
           d.seed = msg.seed;
+
+          if (msg.validation) {
+            d.validationChecks += msg.validation.totalChecks;
+            for (const v of msg.validation.violations) {
+              d.validationViolations.push(v);
+            }
+          }
+
           d.dirty = true;
           d.version++;
           break;
@@ -247,6 +263,7 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
             colStrategies: msg.colStrategies,
             bestRowHistory: msg.bestRowHistory,
             bestColHistory: msg.bestColHistory,
+            validation: msg.validation,
           }));
           addLog(
             `Completed: ${msg.summary.totalIterations.toLocaleString()} iterations, ` +
@@ -256,6 +273,15 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
             `Final gap mean: ${msg.summary.gapStats.mean.toExponential(3)}, ` +
               `Karlin ratio: ${msg.summary.karlinStats.mean.toFixed(4)}`
           );
+          const v = msg.validation;
+          if (v.violations.length === 0) {
+            addLog(`Validation: ${v.totalChecks} checks passed`);
+          } else {
+            addLog(`Validation: ${v.violations.length} violation(s) in ${v.totalChecks} checks`);
+            for (const viol of v.violations.slice(0, 5)) {
+              addLog(`  ⚠ t=${viol.iteration}: ${viol.detail}`);
+            }
+          }
           break;
         }
 

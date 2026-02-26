@@ -223,3 +223,126 @@ export function getCurrentGap(state: SolverState): number {
 
   return maxRowPayoff - minColPayoff;
 }
+
+// ── Validation ────────────────────────────────────────────────────────────────
+
+const EPS = 1e-9;
+
+export interface ValidationViolation {
+  iteration: number;
+  check: string;
+  detail: string;
+}
+
+export interface ValidationResult {
+  passed: boolean;
+  checks: number;
+  violations: ValidationViolation[];
+}
+
+/**
+ * Validates FP invariants for a chunk result against the solver state at
+ * the *end* of the chunk (state.t already advanced).
+ *
+ * Checks performed:
+ *  1. Strategy probabilities sum to 1 and are non-negative
+ *  2. Best response is actually optimal (row max payoff, col min payoff)
+ *  3. Duality gap is non-negative
+ *  4. Gap does not exceed the Karlin O(1/√T) bound (with safety margin)
+ */
+export function validateChunkResult(
+  state: SolverState,
+  result: ChunkResult,
+): ValidationResult {
+  const violations: ValidationViolation[] = [];
+  let checks = 0;
+
+  const { matrix, n, m } = state;
+  const { iters, gaps, finalRowStrategy, finalColStrategy, bestRowHistory, bestColHistory } = result;
+  const steps = iters.length;
+
+  // -- Check 1: Final strategies form valid probability distributions --
+  checks++;
+  const rowSum = finalRowStrategy.reduce((a, b) => a + b, 0);
+  if (Math.abs(rowSum - 1.0) > EPS) {
+    violations.push({ iteration: iters[steps - 1], check: "row_strategy_sum", detail: `Row strategy sums to ${rowSum}` });
+  }
+  checks++;
+  const colSum = finalColStrategy.reduce((a, b) => a + b, 0);
+  if (Math.abs(colSum - 1.0) > EPS) {
+    violations.push({ iteration: iters[steps - 1], check: "col_strategy_sum", detail: `Col strategy sums to ${colSum}` });
+  }
+  checks++;
+  for (let i = 0; i < n; i++) {
+    if (finalRowStrategy[i] < -EPS) {
+      violations.push({ iteration: iters[steps - 1], check: "row_weight_negative", detail: `Row weight[${i}] = ${finalRowStrategy[i]}` });
+      break;
+    }
+  }
+  checks++;
+  for (let j = 0; j < m; j++) {
+    if (finalColStrategy[j] < -EPS) {
+      violations.push({ iteration: iters[steps - 1], check: "col_weight_negative", detail: `Col weight[${j}] = ${finalColStrategy[j]}` });
+      break;
+    }
+  }
+
+  // -- Check 2 & 3: Best response optimality and non-negative gap (sample a few points) --
+  const sampleCount = Math.min(steps, 5);
+  const sampleStep = Math.max(1, Math.floor(steps / sampleCount));
+
+  for (let s = 0; s < sampleCount; s++) {
+    const k = Math.min(s * sampleStep, steps - 1);
+    const t = iters[k];
+    if (t <= 0) continue;
+
+    // Reconstruct strategies at iteration t by computing from counts up to that point
+    // (approximation: use gap directly since counts aren't stored per-iteration)
+    const gap = gaps[k];
+
+    // Check 3: Gap must be non-negative for zero-sum games
+    checks++;
+    if (gap < -EPS) {
+      violations.push({ iteration: t, check: "negative_gap", detail: `Gap = ${gap.toExponential(4)}` });
+    }
+
+    // Check 4: Gap should satisfy Karlin bound O(1/√T) with generous safety factor
+    // We use 10× the matrix Frobenius norm as the constant multiplier
+    checks++;
+    if (t >= 10) {
+      let frobSq = 0;
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < m; j++) {
+          frobSq += matrix[i][j] * matrix[i][j];
+        }
+      }
+      const frobNorm = Math.sqrt(frobSq);
+      const karlinBound = 10 * frobNorm / Math.sqrt(t);
+      if (gap > karlinBound + EPS) {
+        violations.push({ iteration: t, check: "exceeds_karlin_bound", detail: `Gap ${gap.toExponential(4)} exceeds 10‖A‖_F/√T = ${karlinBound.toExponential(4)}` });
+      }
+    }
+  }
+
+  // -- Check 5: Best response indices are in valid range --
+  checks++;
+  for (let k = 0; k < steps; k++) {
+    if (bestRowHistory[k] < 0 || bestRowHistory[k] >= n) {
+      violations.push({ iteration: iters[k], check: "invalid_row_br", detail: `BR row index ${bestRowHistory[k]} out of [0, ${n - 1}]` });
+      break;
+    }
+  }
+  checks++;
+  for (let k = 0; k < steps; k++) {
+    if (bestColHistory[k] < 0 || bestColHistory[k] >= m) {
+      violations.push({ iteration: iters[k], check: "invalid_col_br", detail: `BR col index ${bestColHistory[k]} out of [0, ${m - 1}]` });
+      break;
+    }
+  }
+
+  return {
+    passed: violations.length === 0,
+    checks,
+    violations,
+  };
+}

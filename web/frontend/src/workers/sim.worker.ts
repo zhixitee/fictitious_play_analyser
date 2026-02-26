@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 
-import { createSolver, stepChunk } from "../core/solver";
+import { createSolver, stepChunk, validateChunkResult } from "../core/solver";
+import type { ValidationViolation } from "../core/solver";
 import { getRandomZeroSumGame, getWang2025, Matrix } from "../core/games";
 import { mulberry32 } from "../core/rng";
 import { computeSimulationSummary, SimulationSummary } from "../core/stats";
@@ -48,6 +49,7 @@ export interface WorkerUpdateMessage {
   seed: number;
   avgGap: number;
   progress: number;
+  validation: { totalChecks: number; violations: ValidationViolation[] } | null;
 }
 
 export interface WorkerDoneMessage {
@@ -62,6 +64,7 @@ export interface WorkerDoneMessage {
   colStrategies: number[][][];  // [game][iterIdx][action]
   bestRowHistory: number[][];   // [game][iterIdx]
   bestColHistory: number[][];   // [game][iterIdx]
+  validation: { totalChecks: number; violations: ValidationViolation[] };
 }
 
 export interface WorkerErrorMessage {
@@ -160,6 +163,11 @@ function runSimulation(cfg: SimConfig) {
     let dBestCol: number[][] = matrices.map(() => []);
     let sentMatrices = false;
 
+    let totalValidationChecks = 0;
+    const allViolations: ValidationViolation[] = [];
+    let dViolations: ValidationViolation[] = [];
+    let dChecks = 0;
+
     let current = 0;
     let lastUpdateTime = startTime;
     const updateInterval = 50; // ms between UI updates
@@ -168,7 +176,18 @@ function runSimulation(cfg: SimConfig) {
       const step = Math.min(chunkSize, totalIter - current);
 
       for (let i = 0; i < solversFixed.length; i++) {
-        const { iters, gaps, finalRowStrategy, finalColStrategy, bestRowHistory: brRow, bestColHistory: brCol } = stepChunk(solversFixed[i], step);
+        const chunkResult = stepChunk(solversFixed[i], step);
+        const { iters, gaps, finalRowStrategy, finalColStrategy, bestRowHistory: brRow, bestColHistory: brCol } = chunkResult;
+
+        // Validate invariants for this chunk
+        const vResult = validateChunkResult(solversFixed[i], chunkResult);
+        totalValidationChecks += vResult.checks;
+        dChecks += vResult.checks;
+        for (const v of vResult.violations) {
+          const tagged = { ...v, detail: `[Game ${i + 1}] ${v.detail}` };
+          allViolations.push(tagged);
+          dViolations.push(tagged);
+        }
         
         // Only push iteration numbers once (same for all games)
         if (i === 0) {
@@ -232,6 +251,9 @@ function runSimulation(cfg: SimConfig) {
           seed,
           avgGap,
           progress: (current / totalIter) * 100,
+          validation: dViolations.length > 0 || dChecks > 0
+            ? { totalChecks: dChecks, violations: dViolations }
+            : null,
         } satisfies WorkerUpdateMessage);
 
         dIters = [];
@@ -241,6 +263,8 @@ function runSimulation(cfg: SimConfig) {
         dColStrat = matrices.map(() => []);
         dBestRow = matrices.map(() => []);
         dBestCol = matrices.map(() => []);
+        dViolations = [];
+        dChecks = 0;
         sentMatrices = true;
       }
     }
@@ -260,6 +284,7 @@ function runSimulation(cfg: SimConfig) {
       colStrategies,
       bestRowHistory,
       bestColHistory,
+      validation: { totalChecks: totalValidationChecks, violations: allViolations },
     } satisfies WorkerDoneMessage);
     
   } catch (error) {

@@ -383,6 +383,44 @@ export function IterationExplorer({
         </CollapsibleSection>
       )}
 
+      {state.validation.totalChecks > 0 && (
+        <CollapsibleSection title="Validation">
+          <div className="space-y-2 text-xs">
+            <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+              <span className="text-muted">Checks:</span>
+              <span className="font-mono">{state.validation.totalChecks.toLocaleString()}</span>
+
+              <span className="text-muted">Status:</span>
+              {state.validation.violations.length === 0 ? (
+                <span className="font-mono text-green-400">All passed</span>
+              ) : (
+                <span className="font-mono text-red-400">
+                  {state.validation.violations.length} violation{state.validation.violations.length !== 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
+
+            {state.validation.violations.length > 0 && (
+              <div className="pt-2 border-t border-border space-y-1">
+                <h4 className="text-xs font-bold text-red-400 mb-1">Violations</h4>
+                {state.validation.violations.slice(0, 10).map((v, i) => (
+                  <div key={i} className="bg-gray-800 rounded p-1.5 text-[10px] font-mono text-red-300">
+                    <span className="text-muted">t={v.iteration}</span>{" "}
+                    <span className="text-gray-400">[{v.check}]</span>{" "}
+                    {v.detail}
+                  </div>
+                ))}
+                {state.validation.violations.length > 10 && (
+                  <div className="text-muted text-[10px]">
+                    ...and {state.validation.violations.length - 10} more
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </CollapsibleSection>
+      )}
+
       <CollapsibleSection title="Export">
         <div className="space-y-2">
           <button
