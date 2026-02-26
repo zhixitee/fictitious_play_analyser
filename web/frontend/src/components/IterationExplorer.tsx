@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import { Download, FileText, Copy, ChevronDown, ChevronRight } from "lucide-react";
 import type { SimulationState } from "../hooks/useWorkerSimulation";
 import type { SimulationSummary } from "../core/stats";
@@ -67,6 +67,98 @@ function StrategyBar({ index, weight, color = '#606060' }: { index: number; weig
       <span className="text-xs text-gray-300 w-12 text-right font-mono">
         {weight.toFixed(3)}
       </span>
+    </div>
+  );
+}
+
+function PayoffMatrixTable({ matrix }: { matrix: number[][] }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+    ro.observe(el);
+    setContainerWidth(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
+
+  const rows = matrix.length;
+  const cols = matrix[0].length;
+
+  // +1 column for row headers, +1 row for col headers
+  const totalCols = cols + 1;
+
+  // Compute font size and padding so the entire matrix fits within the container.
+  // Each value cell needs roughly (charWidth * chars + 2*padPx).
+  // We target fitting all columns; font size is clamped to [6, 12]px.
+  const { fontSize, cellPad, decimals } = useMemo(() => {
+    if (containerWidth === 0) return { fontSize: 10, cellPad: 4, decimals: 2 };
+
+    // Estimate: each character ≈ 0.6em, value like "-1.23" = 5-6 chars, header "C10" = 3 chars
+    const maxDec = Math.max(0, Math.min(2, containerWidth > 200 ? 2 : containerWidth > 120 ? 1 : 0));
+    const charsPerCell = 3 + maxDec; // e.g. "-1.23" = 5 chars with 2 decimals
+    const headerChars = 3; // "R9" or "C10"
+
+    // Solve for fontSize: totalCols * (charWidth * chars + 2*pad) ≤ containerWidth
+    // charWidth ≈ 0.6 * fontSize, pad ≈ fontSize * 0.3
+    const effectiveChars = (totalCols - 1) * charsPerCell + headerChars;
+    const charWidthFactor = 0.6;
+    const padFactor = 0.5; // total pad per cell as factor of fontSize
+
+    const maxFontSize = containerWidth / (effectiveChars * charWidthFactor + totalCols * padFactor);
+    const fs = Math.max(6, Math.min(12, Math.floor(maxFontSize)));
+    const pad = Math.max(1, Math.min(4, Math.round(fs * 0.25)));
+
+    return { fontSize: fs, cellPad: pad, decimals: maxDec };
+  }, [containerWidth, totalCols]);
+
+  const cellStyle: React.CSSProperties = {
+    padding: `${cellPad}px`,
+    fontSize: `${fontSize}px`,
+    lineHeight: 1.2,
+    fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+    whiteSpace: "nowrap",
+  };
+
+  return (
+    <div ref={containerRef} className="w-full overflow-x-auto">
+      <table className="w-full border-collapse">
+        <thead>
+          <tr>
+            <th style={{ ...cellStyle, color: '#707070' }}></th>
+            {matrix[0].map((_, j) => (
+              <th key={j} style={{ ...cellStyle, color: '#707070', textAlign: 'center' }}>
+                C{j}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {matrix.map((row, i) => (
+            <tr key={i}>
+              <td style={{ ...cellStyle, color: '#707070' }}>R{i}</td>
+              {row.map((val, j) => (
+                <td
+                  key={j}
+                  style={{
+                    ...cellStyle,
+                    textAlign: 'right',
+                    color: val > 0 ? '#4ade80' : val < 0 ? '#f87171' : '#9ca3af',
+                  }}
+                >
+                  {val.toFixed(decimals)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -272,40 +364,7 @@ export function IterationExplorer({
 
       {selectedMatrix && (
         <CollapsibleSection title={`Payoff Matrix - Game ${explorerGameIndex + 1} (${selectedMatrix.length}x${selectedMatrix[0].length})`}>
-          <div className="overflow-x-auto">
-            <table className="text-xs font-mono w-full">
-              <thead>
-                <tr>
-                  <th className="text-muted p-1"></th>
-                  {selectedMatrix[0].slice(0, 8).map((_, j) => (
-                    <th key={j} className="text-muted p-1 text-center">C{j}</th>
-                  ))}
-                  {selectedMatrix[0].length > 8 && <th className="text-muted p-1">...</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {selectedMatrix.slice(0, 8).map((row, i) => (
-                  <tr key={i}>
-                    <td className="text-muted p-1">R{i}</td>
-                    {row.slice(0, 8).map((val, j) => (
-                      <td 
-                        key={j} 
-                        className={`p-1 text-right ${val > 0 ? 'text-green-400' : val < 0 ? 'text-red-400' : 'text-gray-400'}`}
-                      >
-                        {val.toFixed(2)}
-                      </td>
-                    ))}
-                    {row.length > 8 && <td className="text-muted text-center">...</td>}
-                  </tr>
-                ))}
-                {selectedMatrix.length > 8 && (
-                  <tr>
-                    <td colSpan={10} className="text-muted text-center p-1">...</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <PayoffMatrixTable matrix={selectedMatrix} />
         </CollapsibleSection>
       )}
 
