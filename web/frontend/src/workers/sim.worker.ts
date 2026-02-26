@@ -250,7 +250,7 @@ function runSimulation(cfg: SimConfig) {
           matrices: sentMatrices ? null : matrices,
           seed,
           avgGap,
-          progress: (current / totalIter) * 100,
+          progress: totalIter >= Number.MAX_SAFE_INTEGER ? -1 : (current / totalIter) * 100,
           validation: dViolations.length > 0 || dChecks > 0
             ? { totalChecks: dChecks, violations: dViolations }
             : null,

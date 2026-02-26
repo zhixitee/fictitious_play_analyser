@@ -37,6 +37,8 @@ export interface ControlsConfig {
   showLegend: boolean;
   tieBreaking: TieBreakingRule;
   initialization: InitializationMode;
+  localMode: boolean;
+  unlimited: boolean;
 }
 
 interface ControlsPanelProps {
@@ -55,7 +57,8 @@ interface ControlsPanelProps {
 }
 
 const SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10];
-const MAX_ITERATIONS = 1000000;
+const MAX_ITERATIONS_DEFAULT = 1_000_000;
+const MAX_ITERATIONS_LOCAL = 1_000_000_000;
 const MAX_CHUNK_SIZE = 10000;
 const MAX_BATCH_SIZE = 100;
 
@@ -74,6 +77,7 @@ export function ControlsPanel({
   gameCount,
 }: ControlsPanelProps) {
   const [useSeed, setUseSeed] = useState(config.seed !== null);
+  const maxIterations = config.localMode ? MAX_ITERATIONS_LOCAL : MAX_ITERATIONS_DEFAULT;
 
   const handleSeedToggle = (checked: boolean) => {
     setUseSeed(checked);
@@ -95,18 +99,29 @@ export function ControlsPanel({
     onConfigChange({ sizes: newSizes.length > 0 ? newSizes : [3] });
   };
 
+  const isUnlimited = config.localMode && config.unlimited;
+
   const estimatedMB = useMemo(() => estimateMemoryMB(config), [
     config.batchSize, config.iterations, config.chunkSize,
     config.sizeN, config.mode, config.sizes,
   ]);
 
+  // Live memory estimate based on current iteration (for unlimited mode)
+  const liveMemoryMB = useMemo(() => {
+    if (!isUnlimited) return estimatedMB;
+    const liveConfig = { ...config, iterations: currentIteration || 1 };
+    return estimateMemoryMB(liveConfig);
+  }, [isUnlimited, currentIteration, config, estimatedMB]);
+
   const memoryColor = estimatedMB < 100
     ? "bg-green-700/40 text-green-300 border-green-700"
     : estimatedMB < 500
     ? "bg-yellow-700/40 text-yellow-300 border-yellow-700"
+    : estimatedMB < 1000
+    ? "bg-orange-700/40 text-orange-300 border-orange-700"
     : "bg-red-700/40 text-red-300 border-red-700";
 
-  const memoryLabel = estimatedMB < 100 ? "Safe" : estimatedMB < 500 ? "Caution" : "Danger";
+  const memoryLabel = estimatedMB < 100 ? "Safe" : estimatedMB < 500 ? "Caution" : estimatedMB < 1000 ? "Warning" : "Danger";
 
   return (
     <div className="card space-y-4">
@@ -200,31 +215,56 @@ export function ControlsPanel({
       </div>
 
       <div className="space-y-2">
-        <label className="block text-sm text-muted">Iterations</label>
-        <input
-          type="number"
-          value={config.iterations}
-          onChange={(e) =>
-            onConfigChange({
-              iterations: Math.max(100, Math.min(MAX_ITERATIONS, parseInt(e.target.value) || 1000)),
-            })
-          }
-          disabled={isRunning}
-          min={100}
-          max={MAX_ITERATIONS}
-          step={100}
-          className="w-full"
-        />
-        <input
-          type="range"
-          value={config.iterations}
-          onChange={(e) => onConfigChange({ iterations: parseInt(e.target.value) })}
-          disabled={isRunning}
-          min={100}
-          max={MAX_ITERATIONS}
-          step={100}
-          className="w-full"
-        />
+        <div className="flex items-center justify-between">
+          <label className="block text-sm text-muted">Iterations</label>
+          {config.localMode && (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={config.unlimited}
+                onChange={(e) => onConfigChange({ unlimited: e.target.checked })}
+                disabled={isRunning}
+                className="accent-gray-500"
+              />
+              <span className="text-xs text-muted">Unlimited</span>
+            </label>
+          )}
+        </div>
+        {config.unlimited && config.localMode ? (
+          <p className="text-xs text-muted font-mono">Runs until stopped</p>
+        ) : (
+          <>
+            <input
+              type="number"
+              value={config.iterations}
+              onChange={(e) =>
+                onConfigChange({
+                  iterations: Math.max(100, Math.min(maxIterations, parseInt(e.target.value) || 1000)),
+                })
+              }
+              disabled={isRunning}
+              min={100}
+              max={maxIterations}
+              step={100}
+              className="w-full"
+            />
+            <input
+              type="range"
+              value={Math.min(config.iterations, MAX_ITERATIONS_DEFAULT)}
+              onChange={(e) => onConfigChange({ iterations: parseInt(e.target.value) })}
+              disabled={isRunning}
+              min={100}
+              max={MAX_ITERATIONS_DEFAULT}
+              step={100}
+              className="w-full"
+            />
+            {config.localMode && config.iterations > MAX_ITERATIONS_DEFAULT && (
+              <p className="text-xs text-yellow-400 font-mono">
+                {config.iterations.toLocaleString()} iters (above default 1M cap)
+              </p>
+            )}
+          </>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -285,6 +325,30 @@ export function ControlsPanel({
       </div>
 
       <div className="space-y-2 pt-2 border-t border-border">
+        <label className="block text-sm text-muted">Environment</label>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={config.localMode}
+            onChange={(e) => {
+              const local = e.target.checked;
+              onConfigChange({
+                localMode: local,
+                unlimited: local ? config.unlimited : false,
+                iterations: !local && config.iterations > MAX_ITERATIONS_DEFAULT
+                  ? MAX_ITERATIONS_DEFAULT
+                  : config.iterations,
+              });
+            }}
+            disabled={isRunning}
+            className="accent-gray-500"
+          />
+          <span className="text-sm text-gray-300">Local Mode</span>
+          <span className="text-[10px] text-muted">(uncapped iterations)</span>
+        </label>
+      </div>
+
+      <div className="space-y-2 pt-2 border-t border-border">
         <label className="block text-sm text-muted">Visualization</label>
         
         <label className="flex items-center gap-2 cursor-pointer">
@@ -339,10 +403,25 @@ export function ControlsPanel({
         </div>
       </div>
 
-      <div className={`text-xs rounded border px-3 py-2 font-mono ${memoryColor}`}>
-        Est. Memory: {estimatedMB < 1 ? estimatedMB.toFixed(2) : estimatedMB.toFixed(0)} MB
-        <span className="ml-2 opacity-75">({memoryLabel})</span>
-      </div>
+      {isUnlimited ? (
+        <div className={`text-xs rounded border px-3 py-2 font-mono ${
+          status === "running"
+            ? (liveMemoryMB < 100 ? "bg-green-700/40 text-green-300 border-green-700"
+              : liveMemoryMB < 500 ? "bg-yellow-700/40 text-yellow-300 border-yellow-700"
+              : liveMemoryMB < 1000 ? "bg-orange-700/40 text-orange-300 border-orange-700"
+              : "bg-red-700/40 text-red-300 border-red-700")
+            : "bg-yellow-700/40 text-yellow-300 border-yellow-700"
+        }`}>
+          {status === "running"
+            ? <>Live Memory: ~{liveMemoryMB < 1 ? liveMemoryMB.toFixed(2) : liveMemoryMB.toFixed(0)} MB</>
+            : <>Unlimited mode — memory grows with iterations</>}
+        </div>
+      ) : (
+        <div className={`text-xs rounded border px-3 py-2 font-mono ${memoryColor}`}>
+          Est. Memory: {estimatedMB < 1 ? estimatedMB.toFixed(2) : estimatedMB.toFixed(0)} MB
+          <span className="ml-2 opacity-75">({memoryLabel})</span>
+        </div>
+      )}
 
       <div className="flex gap-2 pt-4 border-t border-border">
         {!isRunning ? (
@@ -378,7 +457,7 @@ export function ControlsPanel({
           <StatusBadge status={status} />
         </div>
 
-        {(status === "running" || status === "completed") && (
+        {(status === "running" || status === "completed") && !isUnlimited && (
           <div className="space-y-1">
             <div className="flex justify-between text-xs text-muted">
               <span>Progress</span>
@@ -399,7 +478,9 @@ export function ControlsPanel({
               <div className="text-muted">Iteration</div>
               <div className="font-mono text-gray-200">
                 {currentIteration.toLocaleString()}
-                <span className="text-muted">/{config.iterations.toLocaleString()}</span>
+                {!isUnlimited && (
+                  <span className="text-muted">/{config.iterations.toLocaleString()}</span>
+                )}
               </div>
             </div>
             <div>
@@ -408,6 +489,14 @@ export function ControlsPanel({
                 {avgGap > 0 ? avgGap.toExponential(2) : "-"}
               </div>
             </div>
+            {isUnlimited && status === "running" && (
+              <div className="col-span-2">
+                <div className="text-muted">Est. Memory</div>
+                <div className="font-mono text-gray-200">
+                  {liveMemoryMB < 1 ? liveMemoryMB.toFixed(2) : liveMemoryMB.toFixed(0)} MB
+                </div>
+              </div>
+            )}
           </div>
         )}
 

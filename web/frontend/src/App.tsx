@@ -25,6 +25,8 @@ const defaultConfig: ControlsConfig = {
   showLegend: true,
   tieBreaking: "lexicographic",
   initialization: "standard",
+  localMode: import.meta.env.DEV,
+  unlimited: false,
 };
 
 function App() {
@@ -89,6 +91,9 @@ function App() {
     const effectiveConfig = {
       ...config,
       batchSize: config.batchSize === '' ? 1 : config.batchSize,
+      iterations: (config.localMode && config.unlimited)
+        ? Number.MAX_SAFE_INTEGER
+        : config.iterations,
     };
     if (config.batchSize === '') {
       setConfig((prev) => ({ ...prev, batchSize: 1 }));

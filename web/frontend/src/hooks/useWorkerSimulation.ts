@@ -347,8 +347,11 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
       };
 
       addLog(`Starting simulation: ${config.mode} mode`);
+      const iterLabel = workerConfig.iterations >= Number.MAX_SAFE_INTEGER
+        ? "unlimited"
+        : workerConfig.iterations.toLocaleString();
       addLog(
-        `Config: ${workerConfig.batch} games, ${workerConfig.iterations.toLocaleString()} iterations`
+        `Config: ${workerConfig.batch} games, ${iterLabel} iterations`
       );
 
       worker.postMessage({ type: "start", config: workerConfig });
