@@ -43,6 +43,7 @@ function App() {
     reset,
     isRunning,
     isCompleted,
+    serverStatus,
   } = useWorkerSimulation();
 
   const gameCount = state.matrices.length || (config.batchSize || 1);
@@ -180,6 +181,7 @@ function App() {
                     status={state.status}
                     error={state.error ?? undefined}
                     gameCount={gameCount}
+                    serverStatus={serverStatus}
                   />
 
                   {config.mode === "custom" && (

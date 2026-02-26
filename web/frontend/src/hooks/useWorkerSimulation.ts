@@ -92,6 +92,8 @@ function createEmptyDataRef(): SimDataRef {
   };
 }
 
+export type ServerStatus = "disconnected" | "connecting" | "connected" | "error";
+
 interface UseWorkerSimulationReturn {
   state: SimulationState;
   start: (config: ControlsConfig) => void;
@@ -99,11 +101,16 @@ interface UseWorkerSimulationReturn {
   reset: () => void;
   isRunning: boolean;
   isCompleted: boolean;
+  serverStatus: ServerStatus;
 }
+
+const LOCAL_SERVER_URL = "ws://localhost:3001";
 
 export function useWorkerSimulation(): UseWorkerSimulationReturn {
   const [state, setState] = useState<SimulationState>(initialState);
+  const [serverStatus, setServerStatus] = useState<ServerStatus>("disconnected");
   const workerRef = useRef<Worker | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
   const dataRef = useRef<SimDataRef>(createEmptyDataRef());
   const rafRef = useRef<number>(0);
   const lastSyncedVersion = useRef<number>(0);
@@ -162,13 +169,17 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
         workerRef.current.terminate();
         workerRef.current = null;
       }
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
     };
   }, []);
 
-  // Handle worker messages – pure ref mutations, no setState
-  const handleWorkerMessage = useCallback(
-    (event: MessageEvent<WorkerOutMessage>) => {
-      const msg = event.data;
+  // Unified message handler – pure ref mutations, no setState
+  // Works for both Worker (event.data) and WebSocket (parsed JSON)
+  const handleMessage = useCallback(
+    (msg: WorkerOutMessage) => {
 
       switch (msg.type) {
         case "update": {
@@ -299,10 +310,115 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
     [addLog]
   );
 
-  const start = useCallback(
+  // Wrapper for Worker onmessage events
+  const handleWorkerMessage = useCallback(
+    (event: MessageEvent<WorkerOutMessage>) => handleMessage(event.data),
+    [handleMessage]
+  );
+
+  // Build SimConfig from ControlsConfig
+  const buildSimConfig = useCallback((config: ControlsConfig): SimConfig => ({
+    mode: config.mode,
+    iterations: config.iterations,
+    chunk: config.chunkSize,
+    batch: config.mode === "wang" || config.mode === "custom" ? 1 : (config.batchSize || 1),
+    sizes: config.sizes,
+    sizeN: config.sizeN,
+    seed: config.seed ?? undefined,
+    customMatrix: config.mode === "custom" ? config.customMatrix : undefined,
+    tieBreaking: config.tieBreaking,
+    initialization: config.initialization,
+  }), []);
+
+  // ── WebSocket (local server) start path ──────────────────────────────────
+  const startViaServer = useCallback(
+    (config: ControlsConfig) => {
+      // Clean up previous connections
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      if (workerRef.current) {
+        workerRef.current.terminate();
+        workerRef.current = null;
+      }
+
+      dataRef.current = createEmptyDataRef();
+      lastSyncedVersion.current = 0;
+      runningRef.current = true;
+      setServerStatus("connecting");
+
+      setState({
+        ...initialState,
+        status: "running",
+        logs: [],
+      });
+
+      const simConfig = buildSimConfig(config);
+      const iterLabel = simConfig.iterations >= Number.MAX_SAFE_INTEGER
+        ? "unlimited"
+        : simConfig.iterations.toLocaleString();
+
+      addLog(`Connecting to local server at ${LOCAL_SERVER_URL}...`);
+
+      const ws = new WebSocket(LOCAL_SERVER_URL);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setServerStatus("connected");
+        addLog(`Connected to local server (Node.js process)`);
+        addLog(`Starting simulation: ${config.mode} mode`);
+        addLog(`Config: ${simConfig.batch} games, ${iterLabel} iterations`);
+        ws.send(JSON.stringify({ type: "start", config: simConfig }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg: WorkerOutMessage = JSON.parse(event.data as string);
+          handleMessage(msg);
+        } catch {
+          // ignore non-JSON
+        }
+      };
+
+      ws.onerror = () => {
+        setServerStatus("error");
+        runningRef.current = false;
+        setState((prev) => ({
+          ...prev,
+          status: "error",
+          error: "Could not connect to local server. Run: npm run server",
+        }));
+        addLog("Failed to connect to local server. Make sure it's running: npm run server");
+      };
+
+      ws.onclose = () => {
+        setServerStatus("disconnected");
+        // If simulation was still running, the server closed unexpectedly
+        if (runningRef.current) {
+          runningRef.current = false;
+          setState((prev) => {
+            if (prev.status === "running") {
+              return { ...prev, status: "completed" };
+            }
+            return prev;
+          });
+          addLog("Server connection closed");
+        }
+      };
+    },
+    [handleMessage, addLog, buildSimConfig]
+  );
+
+  // ── Web Worker start path ────────────────────────────────────────────────
+  const startViaWorker = useCallback(
     (config: ControlsConfig) => {
       if (workerRef.current) {
         workerRef.current.terminate();
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
       }
 
       dataRef.current = createEmptyDataRef();
@@ -333,34 +449,38 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
 
       workerRef.current = worker;
 
-      const workerConfig: SimConfig = {
-        mode: config.mode,
-        iterations: config.iterations,
-        chunk: config.chunkSize,
-        batch: config.mode === "wang" || config.mode === "custom" ? 1 : (config.batchSize || 1),
-        sizes: config.sizes,
-        sizeN: config.sizeN,
-        seed: config.seed ?? undefined,
-        customMatrix: config.mode === "custom" ? config.customMatrix : undefined,
-        tieBreaking: config.tieBreaking,
-        initialization: config.initialization,
-      };
+      const simConfig = buildSimConfig(config);
 
       addLog(`Starting simulation: ${config.mode} mode`);
-      const iterLabel = workerConfig.iterations >= Number.MAX_SAFE_INTEGER
+      const iterLabel = simConfig.iterations >= Number.MAX_SAFE_INTEGER
         ? "unlimited"
-        : workerConfig.iterations.toLocaleString();
+        : simConfig.iterations.toLocaleString();
       addLog(
-        `Config: ${workerConfig.batch} games, ${iterLabel} iterations`
+        `Config: ${simConfig.batch} games, ${iterLabel} iterations`
       );
 
-      worker.postMessage({ type: "start", config: workerConfig });
+      worker.postMessage({ type: "start", config: simConfig });
     },
-    [handleWorkerMessage, addLog]
+    [handleWorkerMessage, addLog, buildSimConfig]
+  );
+
+  // ── Public start: routes to server or worker ─────────────────────────────
+  const start = useCallback(
+    (config: ControlsConfig) => {
+      if (config.localMode) {
+        startViaServer(config);
+      } else {
+        startViaWorker(config);
+      }
+    },
+    [startViaServer, startViaWorker]
   );
 
   const stop = useCallback(() => {
-    if (workerRef.current) {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: "stop" }));
+      addLog("Stopping simulation (server)...");
+    } else if (workerRef.current) {
       workerRef.current.postMessage({ type: "stop" });
       addLog("Stopping simulation...");
     }
@@ -373,6 +493,11 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
       workerRef.current.terminate();
       workerRef.current = null;
     }
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    setServerStatus("disconnected");
     dataRef.current = createEmptyDataRef();
     lastSyncedVersion.current = 0;
     setState(initialState);
@@ -385,6 +510,7 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
     reset,
     isRunning: state.status === "running",
     isCompleted: state.status === "completed",
+    serverStatus,
   };
 }
 

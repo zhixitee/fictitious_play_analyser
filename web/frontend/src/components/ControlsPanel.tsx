@@ -3,6 +3,8 @@ import { Play, Square, RotateCcw, Dice5 } from "lucide-react";
 import type { SimMode } from "../workers/sim.worker";
 import type { TieBreakingRule, InitializationMode } from "../types/simulation";
 
+import type { ServerStatus } from "../hooks/useWorkerSimulation";
+
 function estimateMemoryMB(config: {
   batchSize: number | '';
   iterations: number;
@@ -54,6 +56,7 @@ interface ControlsPanelProps {
   status: "idle" | "running" | "completed" | "error";
   error?: string;
   gameCount: number;
+  serverStatus: ServerStatus;
 }
 
 const SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -75,6 +78,7 @@ export function ControlsPanel({
   status,
   error,
   gameCount,
+  serverStatus,
 }: ControlsPanelProps) {
   const [useSeed, setUseSeed] = useState(config.seed !== null);
   const maxIterations = config.localMode ? MAX_ITERATIONS_LOCAL : MAX_ITERATIONS_DEFAULT;
@@ -215,56 +219,36 @@ export function ControlsPanel({
       </div>
 
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label className="block text-sm text-muted">Iterations</label>
-          {config.localMode && (
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={config.unlimited}
-                onChange={(e) => onConfigChange({ unlimited: e.target.checked })}
-                disabled={isRunning}
-                className="accent-gray-500"
-              />
-              <span className="text-xs text-muted">Unlimited</span>
-            </label>
-          )}
-        </div>
-        {config.unlimited && config.localMode ? (
-          <p className="text-xs text-muted font-mono">Runs until stopped</p>
-        ) : (
-          <>
-            <input
-              type="number"
-              value={config.iterations}
-              onChange={(e) =>
-                onConfigChange({
-                  iterations: Math.max(100, Math.min(maxIterations, parseInt(e.target.value) || 1000)),
-                })
-              }
-              disabled={isRunning}
-              min={100}
-              max={maxIterations}
-              step={100}
-              className="w-full"
-            />
-            <input
-              type="range"
-              value={Math.min(config.iterations, MAX_ITERATIONS_DEFAULT)}
-              onChange={(e) => onConfigChange({ iterations: parseInt(e.target.value) })}
-              disabled={isRunning}
-              min={100}
-              max={MAX_ITERATIONS_DEFAULT}
-              step={100}
-              className="w-full"
-            />
-            {config.localMode && config.iterations > MAX_ITERATIONS_DEFAULT && (
+        <label className="block text-sm text-muted">Iterations</label>
+        <input
+          type="number"
+          value={config.iterations}
+          onChange={(e) =>
+            onConfigChange({
+              iterations: Math.max(100, Math.min(maxIterations, parseInt(e.target.value) || 1000)),
+            })
+          }
+          disabled={isRunning}
+          min={100}
+          max={maxIterations}
+          step={100}
+          className="w-full"
+        />
+        <input
+          type="range"
+          value={Math.min(config.iterations, MAX_ITERATIONS_DEFAULT)}
+          onChange={(e) => onConfigChange({ iterations: parseInt(e.target.value) })}
+          disabled={isRunning}
+          min={100}
+          max={MAX_ITERATIONS_DEFAULT}
+          step={100}
+          className="w-full"
+        />
+        {config.localMode && config.iterations > MAX_ITERATIONS_DEFAULT && (
               <p className="text-xs text-yellow-400 font-mono">
                 {config.iterations.toLocaleString()} iters (above default 1M cap)
               </p>
             )}
-          </>
-        )}
       </div>
 
       <div className="space-y-2">
@@ -344,8 +328,24 @@ export function ControlsPanel({
             className="accent-gray-500"
           />
           <span className="text-sm text-gray-300">Local Mode</span>
-          <span className="text-[10px] text-muted">(uncapped iterations)</span>
+          <span className="text-[10px] text-muted">(uses local server)</span>
         </label>
+        {config.localMode && (
+          <div className="flex items-center gap-2 mt-1">
+            <span className={`w-2 h-2 rounded-full ${
+              serverStatus === "connected" ? "bg-green-400" :
+              serverStatus === "connecting" ? "bg-yellow-400 animate-pulse" :
+              serverStatus === "error" ? "bg-red-400" :
+              "bg-gray-500"
+            }`} />
+            <span className="text-[10px] text-muted">
+              {serverStatus === "connected" ? "Server connected" :
+               serverStatus === "connecting" ? "Connecting..." :
+               serverStatus === "error" ? "Server unreachable — run: npm run server" :
+               "Server idle"}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="space-y-2 pt-2 border-t border-border">
