@@ -339,6 +339,28 @@ export function PlotPanel({
     return value.toFixed(4);
   };
 
+  const AlphaTooltipContent = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div style={{
+        ...commonTooltipStyle.contentStyle,
+      }}>
+        <div style={{ ...commonTooltipStyle.labelStyle, marginBottom: 4 }}>
+          Iter: {Number(label).toLocaleString()}
+        </div>
+        {payload.map((entry: any, i: number) => (
+          <div key={i} style={{ color: entry.color, fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>
+            {entry.name ?? entry.dataKey}: {formatAlphaTooltip(entry.value)}
+          </div>
+        ))}
+        <div style={{ borderTop: '1px solid #3e3e42', marginTop: 4, paddingTop: 4, fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}>
+          <div style={{ color: '#22c55e' }}>Karlin: -0.5000</div>
+          <div style={{ color: '#ef4444' }}>Wang: -0.3333</div>
+        </div>
+      </div>
+    );
+  };
+
   const formatRatioTooltip = (value: number) => {
     if (typeof value !== "number") return value;
     return value.toFixed(4);
@@ -600,9 +622,7 @@ export function PlotPanel({
                     label={{ value: 'alpha', angle: -90, position: 'insideLeft', style: { fill: '#505050', fontSize: 9, fontFamily: "'JetBrains Mono', monospace" } }}
                   />
                   <Tooltip
-                    {...commonTooltipStyle}
-                    formatter={formatAlphaTooltip}
-                    labelFormatter={(label) => `Iter: ${Number(label).toLocaleString()}`}
+                    content={<AlphaTooltipContent />}
                     defaultIndex={alphaTooltipIndex}
                   />
 
