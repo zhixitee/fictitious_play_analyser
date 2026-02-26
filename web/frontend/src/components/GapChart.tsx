@@ -11,6 +11,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { GAME_COLORS } from '../types/simulation';
+import { niceIterationTicks, formatIterationTick } from './charts/useChartZoom';
 
 interface ChartDataPoint {
   iteration: number;
@@ -43,6 +44,12 @@ export function GapChart({
   onToggleLogScale,
 }: GapChartProps) {
   const [selectedGame, setSelectedGame] = useState<number | null>(null);
+
+  const fullMax = data.length > 0 ? data[data.length - 1].iteration : 1;
+  const xTicks = useMemo(
+    () => niceIterationTicks(null, fullMax),
+    [fullMax],
+  );
 
   const chartData = useMemo(() => {
     if (data.length === 0) return [];
@@ -121,8 +128,10 @@ export function GapChart({
           <CartesianGrid strokeDasharray="3 3" stroke="#2e2e32" />
           <XAxis
             dataKey="iteration"
+            type="number"
             stroke="#707070"
-            tickFormatter={(v) => v.toLocaleString()}
+            tickFormatter={formatIterationTick}
+            ticks={xTicks}
             fontSize={12}
           />
           <YAxis

@@ -116,6 +116,11 @@ export function BestResponseChart({
     [domain, fullMax],
   );
 
+  const alwaysTicks = useMemo(
+    () => niceIterationTicks(null, fullMax),
+    [fullMax],
+  );
+
   const axisTickStyle = {
     fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
   };
@@ -170,7 +175,7 @@ export function BestResponseChart({
             fontSize={9}
             scale={logScale && !isZoomed ? "log" : "auto"}
             domain={xDomain}
-            ticks={isZoomed ? xTicks : undefined}
+            ticks={isZoomed ? xTicks : logScale ? undefined : alwaysTicks}
             allowDataOverflow={true}
             tick={axisTickStyle}
             name="Iteration"

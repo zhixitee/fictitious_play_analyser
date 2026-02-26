@@ -183,6 +183,11 @@ export function PlotPanel({
     [zoom.domain, fullMax],
   );
 
+  const defaultTicks = useMemo(
+    () => niceIterationTicks(null, fullMax),
+    [fullMax],
+  );
+
   const chartDataFull = useMemo(() => {
     if (iterations.length === 0) return [];
 
@@ -385,7 +390,7 @@ export function PlotPanel({
     fontSize: 10,
     scale: (logScale && !zoom.isZoomed ? "log" : "auto") as any,
     domain: xDomain,
-    ticks: zoom.isZoomed ? xTicks : undefined,
+    ticks: zoom.isZoomed ? xTicks : logScale ? undefined : defaultTicks,
     allowDataOverflow: true,
     tick: axisTickStyle,
     type: "number" as const,
