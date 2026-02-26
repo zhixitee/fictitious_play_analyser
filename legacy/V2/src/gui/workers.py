@@ -1,4 +1,3 @@
-"""Background worker thread for non-blocking simulation execution."""
 import numpy as np
 from PyQt5.QtCore import QThread, pyqtSignal
 
@@ -6,7 +5,7 @@ from ..core import FPSolver, GameFactory
 
 
 class SimulationWorker(QThread):
-    """Execute simulation in background without blocking UI."""
+
     
     update_signal = pyqtSignal(dict)
     finished_signal = pyqtSignal(dict)
@@ -18,7 +17,6 @@ class SimulationWorker(QThread):
         self.solvers = []
         
     def run(self):
-        """Main simulation loop."""
         self._initialize_solvers()
         
         total_iter = self.config['iterations']
@@ -70,7 +68,6 @@ class SimulationWorker(QThread):
         self._emit_final_stats(current_iter, all_gaps)
     
     def _initialize_solvers(self):
-        """Create solver instances based on configuration."""
         mode = self.config['mode']
         batch_size = self.config['batch']
         seed = self.config['seed']
@@ -98,7 +95,7 @@ class SimulationWorker(QThread):
                 self.solvers.append(FPSolver(mat))
     
     def _emit_final_stats(self, current_iter, all_gaps):
-        """Calculate and emit final statistics."""
+        # Karlin's ratio: gap * sqrt(T), expected O(1) if conjecture holds.
         final_gaps = np.array([g[-1] for g in all_gaps])
         karlins_ratios = final_gaps * np.sqrt(current_iter)
         
@@ -119,5 +116,4 @@ class SimulationWorker(QThread):
         })
     
     def stop(self):
-        """Stop the simulation."""
         self.running = False

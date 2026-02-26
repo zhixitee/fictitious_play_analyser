@@ -3,17 +3,7 @@ import numpy as np
 class GameFactory:
     @staticmethod
     def get_wang_2025():
-        """
-        Constructs the 10x10 'M_aug' matrix from Wang (2025).
-        
-        This game provides a constructive lower bound showing that
-        Fictitious Play can converge as slowly as Ω(t^(-1/3)),
-        disproving Karlin's strong conjecture that all games converge
-        at O(t^(-1/2)) rate.
-        
-        Construction: Augmented Rock-Paper-Scissors with carefully
-        chosen initial utility vector to force slow convergence.
-        """
+        # Wang (2025) constructive lower bound: FP converges as slow as Ω(t^{-1/3})
         A_rps = np.array([[0, -1, 1], [1, 0, -1], [-1, 1, 0]], dtype=np.float64)
         B = -1/900 * np.array([[71, 54, 75], [54, 21, 25], [75, 25, 50]], dtype=np.float64)
         
@@ -35,9 +25,8 @@ class GameFactory:
 
     @staticmethod
     def get_random_game(n_rows, m_cols, seed):
-        """Generates a random skew-symmetric zero-sum game."""
         rng = np.random.default_rng(seed)
         if n_rows == m_cols:
             mat = rng.uniform(-1, 1, size=(n_rows, n_rows))
-            return (mat - mat.T) / 2  # Skew-symmetric
+            return (mat - mat.T) / 2
         return rng.uniform(-1, 1, size=(n_rows, m_cols))

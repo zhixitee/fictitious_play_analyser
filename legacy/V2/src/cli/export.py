@@ -1,9 +1,7 @@
-"""Data export utilities for simulation results."""
 import csv
 
 
 def export_data(iterations, all_gaps, all_row_counts, all_col_counts, game_matrices, filepath, seed):
-    """Export simulation data to CSV or Markdown format."""
     file_ext = filepath.split('.')[-1].lower()
     
     if file_ext == 'csv':
@@ -15,7 +13,6 @@ def export_data(iterations, all_gaps, all_row_counts, all_col_counts, game_matri
 
 
 def _export_csv(iterations, all_gaps, all_row_counts, all_col_counts, filepath, seed):
-    """Export to CSV format."""
     with open(filepath, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['# Fictitious Play Simulation Data'])
@@ -47,7 +44,6 @@ def _export_csv(iterations, all_gaps, all_row_counts, all_col_counts, filepath, 
 
 
 def _export_markdown(iterations, all_gaps, all_row_counts, all_col_counts, game_matrices, filepath, seed):
-    """Export to Markdown format."""
     with open(filepath, 'w') as f:
         f.write(f"# Fictitious Play Simulation Data\n\n")
         f.write(f"**Seed:** {seed}\n\n")

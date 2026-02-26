@@ -1,12 +1,3 @@
-/**
- * Status Panel Component
- * 
- * Displays:
- * - Text log area
- * - Summary statistics
- * - Export buttons (CSV, Markdown)
- */
-
 import React from "react";
 import { Download, FileText, Copy } from "lucide-react";
 import type { SimulationSummary } from "../core/stats";
@@ -66,14 +57,12 @@ export function StatusPanel({
         Status & Export
       </h2>
 
-      {/* Seed Display */}
       {seed !== null && (
         <div className="text-xs text-muted">
           Seed: <span className="font-mono text-gray-300">{seed}</span>
         </div>
       )}
 
-      {/* Log Area */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <label className="text-sm text-muted">Log</label>
@@ -100,12 +89,10 @@ export function StatusPanel({
         </div>
       </div>
 
-      {/* Summary Statistics */}
       {summary && (
         <div className="space-y-3 pt-2 border-t border-border">
           <h3 className="text-sm font-bold text-gray-300">Summary Statistics</h3>
           
-          {/* Execution info */}
           <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
             <span className="text-muted">Games:</span>
             <span className="font-mono">{summary.gamesCount}</span>
@@ -117,7 +104,6 @@ export function StatusPanel({
             <span className="font-mono">{(summary.executionTimeMs / 1000).toFixed(2)}s</span>
           </div>
 
-          {/* Gap Statistics */}
           <div className="pt-2 border-t border-border">
             <h4 className="text-xs font-bold text-gray-400 mb-2">Final Gap Statistics</h4>
             <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
@@ -138,7 +124,6 @@ export function StatusPanel({
             </div>
           </div>
 
-          {/* Karlin Ratio Statistics */}
           <div className="pt-2 border-t border-border">
             <h4 className="text-xs font-bold text-gray-400 mb-2">Karlin&apos;s Ratio (gap * sqrt(T))</h4>
             <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
@@ -161,7 +146,6 @@ export function StatusPanel({
         </div>
       )}
 
-      {/* Export Buttons */}
       <div className="pt-4 border-t border-border space-y-2">
         <h3 className="text-sm font-bold text-gray-300">Export</h3>
         

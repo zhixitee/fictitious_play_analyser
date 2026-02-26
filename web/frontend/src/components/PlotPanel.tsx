@@ -1,23 +1,3 @@
-/**
- * Plot Panel Component
- * 
- * Interactive, zoomable Recharts visualizations for convergence analysis.
- * All four charts share a synchronized X-axis domain via useChartZoom.
- *
- * Charts:
- *  1. Duality Gap (main, large)
- *  2. Convergence Rate (alpha)   – side-by-side
- *  3. Gap / Karlin Bound Ratio   – side-by-side
- *  4. Best Response Dynamics      – bottom
- *
- * Features:
- *  - Click-and-drag brush-to-zoom (ReferenceArea)
- *  - Synchronized X-axis across all charts
- *  - Smart downsampling (max ~1 000 points per chart)
- *  - "Reset Zoom" button per chart
- *  - Hex.tech dark-mode aesthetic (monospace ticks, subtle grid, snappy tooltips)
- */
-
 import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import {
@@ -42,18 +22,17 @@ import {
 import type { Domain } from "./charts";
 import { ZoomableChart } from "./charts";
 
-// Color palette for games
 const GAME_COLORS = [
-  "#4ade80", // green
-  "#60a5fa", // blue
-  "#f472b6", // pink
-  "#facc15", // yellow
-  "#a78bfa", // purple
-  "#fb923c", // orange
-  "#2dd4bf", // teal
-  "#f87171", // red
-  "#818cf8", // indigo
-  "#34d399", // emerald
+  "#4ade80",
+  "#60a5fa",
+  "#f472b6",
+  "#facc15",
+  "#a78bfa",
+  "#fb923c",
+  "#2dd4bf",
+  "#f87171",
+  "#818cf8",
+  "#34d399",
 ];
 
 interface PlotPanelProps {
@@ -95,7 +74,6 @@ export function PlotPanel({
   const gameCount = allGaps.length;
   const showAverageOnly = explorerGameIndex === -2;
   
-  // Initialize visible games state if not provided
   const [internalVisibleGames, setInternalVisibleGames] = useState<boolean[]>([]);
   
   useEffect(() => {
@@ -107,10 +85,9 @@ export function PlotPanel({
   const effectiveVisibleGames = visibleGames || internalVisibleGames;
   const handleVisibleChange = onVisibleGamesChange || setInternalVisibleGames;
 
-  // Get selected iteration value for reference line
   const selectedIterationValue = iterations[selectedIterationIndex] || 0;
 
-  /** Find the closest data-array index for a given iteration value (binary search). */
+  /** Binary search for the closest data index matching an iteration value. */
   const findClosestDataIndex = useCallback((data: ChartDataPoint[], iterValue: number): number | undefined => {
     if (data.length === 0 || iterValue <= 0) return undefined;
     let lo = 0, hi = data.length - 1;
@@ -119,17 +96,14 @@ export function PlotPanel({
       if (data[mid].iteration < iterValue) lo = mid + 1;
       else hi = mid;
     }
-    // Check if the previous index is closer
     if (lo > 0 && Math.abs(data[lo - 1].iteration - iterValue) < Math.abs(data[lo].iteration - iterValue)) {
       return lo - 1;
     }
     return lo;
   }, []);
 
-  // ── Synchronized zoom state ──────────────────────────────────────────────
   const [zoom, zoomActions] = useChartZoom();
 
-  // Reset zoom when a new simulation starts (iterations reset)
   const prevIterLen = useRef(iterations.length);
   useEffect(() => {
     if (iterations.length < prevIterLen.current) {
@@ -138,10 +112,8 @@ export function PlotPanel({
     prevIterLen.current = iterations.length;
   }, [iterations.length, zoomActions]);
 
-  // ── Initial-load animation detection ──────────────────────────────────────
-  // Animate lines only on the very first data arrival (empty → has data).
-  // Once the initial draw completes, lock animations off so streaming updates
-  // don't cause the chart lines to "bounce" on every frame.
+  // Animate lines only on first data arrival, then lock animations off
+  // so streaming updates don't cause "bounce" on every frame.
   const hadDataRef = useRef(false);
   const [initialAnimDone, setInitialAnimDone] = useState(false);
   const isInitialRender = iterations.length > 0 && !hadDataRef.current;
@@ -149,12 +121,11 @@ export function PlotPanel({
   useEffect(() => {
     if (iterations.length > 0 && !hadDataRef.current) {
       hadDataRef.current = true;
-      // Allow Recharts line draw animation for ~900ms, then lock it off
+      // Lock off after initial draw animation completes
       const timer = setTimeout(() => setInitialAnimDone(true), 1000);
       return () => clearTimeout(timer);
     }
     if (iterations.length === 0) {
-      // Simulation was reset – allow initial animation again next time
       hadDataRef.current = false;
       setInitialAnimDone(false);
     }
@@ -162,7 +133,6 @@ export function PlotPanel({
 
   const lineAnimActive = isInitialRender && !initialAnimDone;
 
-  // Framer Motion entrance variants
   const chartVariants = {
     hidden: { opacity: 0, y: 18 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" as const } },
@@ -173,7 +143,6 @@ export function PlotPanel({
     visible: { transition: { staggerChildren: 0.12 } },
   };
 
-  // Brush-to-zoom interaction state (shared across all charts)
   const [brushStart, setBrushStart] = useState<string | number | null>(null);
   const [brushEnd, setBrushEnd] = useState<string | number | null>(null);
 
@@ -205,18 +174,15 @@ export function PlotPanel({
   const fullMax = iterations.length > 0 ? iterations[iterations.length - 1] : 1;
   const fullDomain: [number, number] = [iterations[0] || 0, fullMax];
 
-  // X-axis domain for all charts
   const xDomain: [number | string, number | string] = zoom.domain
     ? [zoom.domain[0], zoom.domain[1]]
     : logScale ? ["auto", "auto"] : [0, "auto"];
 
-  // Smart ticks
   const xTicks = useMemo(
     () => niceIterationTicks(zoom.domain, fullMax),
     [zoom.domain, fullMax],
   );
 
-  // Build main chart data (Duality Gap) – full dataset, then downsample
   const chartDataFull = useMemo(() => {
     if (iterations.length === 0) return [];
 
@@ -244,13 +210,11 @@ export function PlotPanel({
     return data;
   }, [iterations, allGaps, avgGaps, gameCount]);
 
-  // Downsampled view for the gap chart
   const chartData = useMemo(
     () => downsampleData(chartDataFull, zoom.domain, 1000),
     [chartDataFull, zoom.domain],
   );
 
-  // Build convergence rate (alpha) data
   const convergenceRateDataFull = useMemo(() => {
     if (iterations.length < 20) return [];
 
@@ -303,7 +267,6 @@ export function PlotPanel({
     [convergenceRateDataFull, zoom.domain],
   );
 
-  // Build Gap / Karlin Bound ratio data
   const ratioDataFull = useMemo(() => {
     if (iterations.length === 0) return [];
 
@@ -335,7 +298,6 @@ export function PlotPanel({
     [ratioDataFull, zoom.domain],
   );
 
-  // Compute the tooltip default index for each chart based on the iteration slider
   const gapTooltipIndex = useMemo(
     () => findClosestDataIndex(chartData, selectedIterationValue),
     [chartData, selectedIterationValue, findClosestDataIndex],
@@ -349,14 +311,12 @@ export function PlotPanel({
     [ratioData, selectedIterationValue, findClosestDataIndex],
   );
 
-  // Toggle game visibility
   const toggleGameVisibility = (gameIndex: number) => {
     const newVisible = [...effectiveVisibleGames];
     newVisible[gameIndex] = !newVisible[gameIndex];
     handleVisibleChange(newVisible);
   };
 
-  // Format functions
   const formatYAxis = (value: number) => {
     if (value === 0) return "0";
     if (value >= 1) return value.toFixed(1);
@@ -379,7 +339,6 @@ export function PlotPanel({
     return value.toFixed(4);
   };
 
-  // Empty state
   if (iterations.length === 0) {
     return (
       <div className="flex items-center justify-center text-muted h-full">
@@ -394,7 +353,6 @@ export function PlotPanel({
   const showIndividual = !showAverageOnly;
   const showAverage = explorerGameIndex === -2;
 
-  // Common chart configuration – Hex.tech aesthetic
   const commonTooltipStyle = {
     contentStyle: {
       backgroundColor: "rgba(22, 23, 25, 1)",
@@ -420,7 +378,6 @@ export function PlotPanel({
     fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
   };
 
-  // Shared XAxis props for synchronized zoom
   const sharedXAxisProps = {
     dataKey: "iteration" as const,
     stroke: "#505050",
@@ -434,7 +391,6 @@ export function PlotPanel({
     type: "number" as const,
   };
 
-  // Shared mouse handlers for brush-to-zoom
   const chartMouseProps = {
     onMouseDown: handleMouseDown,
     onMouseMove: handleMouseMove,
@@ -449,7 +405,6 @@ export function PlotPanel({
       animate="visible"
       key={hadDataRef.current ? "active" : "idle"}
     >
-      {/* Game visibility checkboxes */}
       {gameCount > 1 && (
         <motion.div variants={chartVariants} className="flex flex-wrap items-center gap-3 px-2 py-2 bg-gray-800/50 rounded flex-shrink-0">
           <span className="text-xs text-muted font-medium">Show Games:</span>
@@ -488,7 +443,6 @@ export function PlotPanel({
         </motion.div>
       )}
 
-      {/* Main Duality Gap Chart */}
       <motion.div variants={chartVariants} className="flex-[3] min-h-0">
       <ZoomableChart
         isZoomed={zoom.isZoomed}
@@ -524,7 +478,6 @@ export function PlotPanel({
             />
             {showLegend && <Legend wrapperStyle={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} />}
 
-            {/* Brush selection area */}
             {brushStart != null && brushEnd != null && (
               <ReferenceArea
                 x1={brushStart}
@@ -535,7 +488,6 @@ export function PlotPanel({
               />
             )}
 
-            {/* Selected iteration reference line */}
             {selectedIterationValue > 0 && (
               <ReferenceLine
                 x={selectedIterationValue}
@@ -546,7 +498,6 @@ export function PlotPanel({
               />
             )}
 
-            {/* Individual game lines */}
             {showIndividual &&
               Array.from({ length: gameCount }, (_, i) => {
                 if (!effectiveVisibleGames[i]) return null;
@@ -567,7 +518,6 @@ export function PlotPanel({
                 );
               })}
 
-            {/* Average line */}
             {showAverage && (
               <Line
                 type="monotone"
@@ -582,7 +532,7 @@ export function PlotPanel({
               />
             )}
 
-            {/* Karlin bound */}
+
             <Line
               type="monotone"
               dataKey="karlin"
@@ -597,7 +547,6 @@ export function PlotPanel({
               animationEasing="ease-out"
             />
 
-            {/* Wang bound */}
             <Line
               type="monotone"
               dataKey="wang"
@@ -616,9 +565,7 @@ export function PlotPanel({
       </ZoomableChart>
       </motion.div>
 
-      {/* Bottom charts - side by side */}
       <motion.div variants={chartVariants} className="flex gap-4 justify-center flex-[1.5] min-h-0">
-        {/* Convergence Rate (alpha) Chart */}
         <div className="flex-1 min-w-0 max-w-[50%] min-h-0">
           <ZoomableChart
             isZoomed={zoom.isZoomed}
@@ -654,17 +601,14 @@ export function PlotPanel({
                     defaultIndex={alphaTooltipIndex}
                   />
 
-                  {/* Brush selection area */}
                   {brushStart != null && brushEnd != null && (
                     <ReferenceArea x1={brushStart} x2={brushEnd} strokeOpacity={0.3} fill="#4ade80" fillOpacity={0.1} />
                   )}
 
-                  {/* Selected iteration reference line */}
                   {selectedIterationValue > 0 && (
                     <ReferenceLine x={selectedIterationValue} stroke="#ffffff" strokeWidth={1} strokeDasharray="4 4" strokeOpacity={0.6} />
                   )}
 
-                  {/* Reference lines */}
                   <ReferenceLine
                     y={-0.5}
                     stroke="#22c55e"
@@ -680,7 +624,6 @@ export function PlotPanel({
                     label={{ value: '-0.33', position: 'right', fill: '#ef4444', fontSize: 9 }}
                   />
 
-                  {/* Game lines */}
                   {showIndividual &&
                     Array.from({ length: gameCount }, (_, i) => {
                       if (!effectiveVisibleGames[i]) return null;
@@ -714,7 +657,6 @@ export function PlotPanel({
           </ZoomableChart>
         </div>
 
-        {/* Gap / Karlin Bound Ratio Chart */}
         <div className="flex-1 min-w-0 max-w-[50%] min-h-0">
           <ZoomableChart
             isZoomed={zoom.isZoomed}
@@ -749,17 +691,14 @@ export function PlotPanel({
                     defaultIndex={ratioTooltipIndex}
                   />
 
-                  {/* Brush selection area */}
                   {brushStart != null && brushEnd != null && (
                     <ReferenceArea x1={brushStart} x2={brushEnd} strokeOpacity={0.3} fill="#4ade80" fillOpacity={0.1} />
                   )}
 
-                  {/* Selected iteration reference line */}
                   {selectedIterationValue > 0 && (
                     <ReferenceLine x={selectedIterationValue} stroke="#ffffff" strokeWidth={1} strokeDasharray="4 4" strokeOpacity={0.6} />
                   )}
 
-                  {/* Reference line at 1.0 (gap equals theoretical bound) */}
                   <ReferenceLine
                     y={1}
                     stroke="#22c55e"
@@ -768,7 +707,6 @@ export function PlotPanel({
                     label={{ value: '1.0', position: 'right', fill: '#22c55e', fontSize: 9 }}
                   />
 
-                  {/* Game lines */}
                   {showIndividual &&
                     Array.from({ length: gameCount }, (_, i) => {
                       if (!effectiveVisibleGames[i]) return null;
@@ -803,7 +741,6 @@ export function PlotPanel({
         </div>
       </motion.div>
 
-      {/* Best Response Dynamics Chart */}
       {bestRowHistory && bestColHistory && bestRowHistory.length > 0 && (() => {
         // Determine which game to show (selected game or first game)
         const brGameIdx = selectedGame !== null ? selectedGame : 0;

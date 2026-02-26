@@ -1,21 +1,8 @@
-/**
- * Statistical Functions
- * 
- * Utility functions for computing summary statistics
- * on simulation results.
- */
-
-/**
- * Compute mean of an array
- */
 export function mean(arr: number[]): number {
   if (arr.length === 0) return 0;
   return arr.reduce((a, b) => a + b, 0) / arr.length;
 }
 
-/**
- * Compute median of an array
- */
 export function median(arr: number[]): number {
   if (arr.length === 0) return 0;
   const sorted = [...arr].sort((a, b) => a - b);
@@ -25,25 +12,16 @@ export function median(arr: number[]): number {
     : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-/**
- * Compute minimum of an array
- */
 export function min(arr: number[]): number {
   if (arr.length === 0) return 0;
   return Math.min(...arr);
 }
 
-/**
- * Compute maximum of an array
- */
 export function max(arr: number[]): number {
   if (arr.length === 0) return 0;
   return Math.max(...arr);
 }
 
-/**
- * Compute standard deviation of an array
- */
 export function std(arr: number[]): number {
   if (arr.length === 0) return 0;
   const m = mean(arr);
@@ -51,24 +29,15 @@ export function std(arr: number[]): number {
   return Math.sqrt(mean(squaredDiffs));
 }
 
-/**
- * Compute Karlin's ratio: gap * sqrt(iteration)
- * According to Robinson (1951), this should converge to a constant
- */
+// gap * sqrt(T) — per Robinson (1951), should converge to a constant for zero-sum games.
 export function karlinRatio(gap: number, iteration: number): number {
   return gap * Math.sqrt(iteration);
 }
 
-/**
- * Compute theoretical bound: 1/sqrt(T)
- */
 export function theoreticalBound(iteration: number): number {
   return 1 / Math.sqrt(iteration);
 }
 
-/**
- * Summary statistics for final gaps
- */
 export interface GapSummary {
   mean: number;
   median: number;
@@ -77,9 +46,6 @@ export interface GapSummary {
   std: number;
 }
 
-/**
- * Karlin ratio summary statistics
- */
 export interface KarlinSummary {
   mean: number;
   median: number;
@@ -90,9 +56,6 @@ export interface KarlinSummary {
   ratioToTheory: number;
 }
 
-/**
- * Compute summary statistics for final gaps across all games
- */
 export function computeGapSummary(finalGaps: number[]): GapSummary {
   return {
     mean: mean(finalGaps),
@@ -103,9 +66,6 @@ export function computeGapSummary(finalGaps: number[]): GapSummary {
   };
 }
 
-/**
- * Compute Karlin ratio summary statistics
- */
 export function computeKarlinSummary(
   finalGaps: number[],
   finalIteration: number
@@ -125,9 +85,6 @@ export function computeKarlinSummary(
   };
 }
 
-/**
- * Full simulation summary
- */
 export interface SimulationSummary {
   totalIterations: number;
   gamesCount: number;
@@ -136,9 +93,6 @@ export interface SimulationSummary {
   karlinStats: KarlinSummary;
 }
 
-/**
- * Compute full simulation summary
- */
 export function computeSimulationSummary(
   allGaps: number[][],
   totalIterations: number,

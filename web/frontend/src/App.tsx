@@ -1,12 +1,3 @@
-/**
- * Fictitious Play Convergence Analyzer
- * 
- * Browser-based web application for analyzing convergence of fictitious play
- * in zero-sum games. All simulations run in the browser using Web Workers.
- * 
- * Deployable to Vercel as a static frontend-only app.
- */
-
 import React, { useState, useCallback, useMemo } from "react";
 import { Github, Info, GripVertical } from "lucide-react";
 import { Group, Panel, Separator } from "react-resizable-panels";
@@ -21,7 +12,6 @@ import type { SimMode } from "./workers/sim.worker";
 import { getRPSGame } from "./core/games";
 import { IterationExplorer } from "./components/IterationExplorer";
 
-// Default configuration
 const defaultConfig: ControlsConfig = {
   mode: "random" as SimMode,
   batchSize: 3,
@@ -53,7 +43,6 @@ function App() {
     isCompleted,
   } = useWorkerSimulation();
 
-  // Update visible games when game count changes
   const gameCount = state.matrices.length || (config.batchSize || 1);
   React.useEffect(() => {
     if (visibleGames.length !== gameCount) {
@@ -61,7 +50,6 @@ function App() {
     }
   }, [gameCount, visibleGames.length]);
 
-  // Sync visible games when explorer game selection changes
   React.useEffect(() => {
     if (explorerGameIndex === -1) {
       setVisibleGames(Array(gameCount).fill(true));
@@ -72,8 +60,7 @@ function App() {
     }
   }, [explorerGameIndex, gameCount]);
 
-  // When a game's visibility is toggled off from the chart panel,
-  // reset the explorer dropdown to "All Games" if that game was selected.
+  // Reset explorer selection if the toggled-off game was selected
   const handleVisibleGamesChange = useCallback((newVisible: boolean[]) => {
     setVisibleGames(newVisible);
     if (explorerGameIndex >= 0 && !newVisible[explorerGameIndex]) {
@@ -81,25 +68,21 @@ function App() {
     }
   }, [explorerGameIndex]);
 
-  // Update selected iteration when simulation progresses
   React.useEffect(() => {
     if (state.iterations.length > 0) {
       setSelectedIterationIndex(state.iterations.length - 1);
     }
   }, [state.iterations.length]);
 
-  // Get the actual iteration value at selectedIterationIndex
   const selectedIteration = useMemo(() => {
     if (state.iterations.length === 0) return 0;
     return state.iterations[Math.min(selectedIterationIndex, state.iterations.length - 1)] || 0;
   }, [state.iterations, selectedIterationIndex]);
 
-  // Update configuration
   const handleConfigChange = useCallback((updates: Partial<ControlsConfig>) => {
     setConfig((prev) => ({ ...prev, ...updates }));
   }, []);
 
-  // Handle start — default batchSize to 1 if empty
   const handleStart = useCallback(() => {
     setSelectedIterationIndex(0);
     setExplorerGameIndex(-1);
@@ -121,7 +104,6 @@ function App() {
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
-      {/* Header */}
       <header className="border-b border-border bg-surface">
         <div className="px-4 py-3 flex items-center justify-between">
           <div>
@@ -151,7 +133,6 @@ function App() {
           </div>
         </div>
 
-        {/* Info Panel (collapsible) */}
         {showInfo && (
           <div className="px-4 pb-3">
             <div className="card text-sm text-muted">
@@ -175,11 +156,9 @@ function App() {
         )}
       </header>
 
-      {/* Main Content - Resizable 3-panel layout */}
       <main className="flex-1 min-h-0 overflow-hidden">
         <div className="h-full w-full">
           <Group orientation="horizontal" className="h-full">
-            {/* Left Panel - Controls */}
             <Panel defaultSize="20" minSize="15" id="controls" className="h-full">
               <div className="h-full overflow-y-auto p-4 pr-1">
                 <div className="flex flex-col gap-4">
@@ -198,7 +177,6 @@ function App() {
                     gameCount={gameCount}
                   />
 
-                  {/* Matrix Editor (for custom mode) */}
                   {config.mode === "custom" && (
                     <div className="card flex-shrink-0">
                       <h3 className="text-sm font-bold text-gray-300 mb-3">
@@ -215,12 +193,10 @@ function App() {
               </div>
             </Panel>
 
-            {/* Left Resize Handle */}
             <Separator className="w-1.5 flex items-center justify-center group hover:bg-border/50 transition-colors">
               <GripVertical size={12} className="text-muted group-hover:text-gray-300 transition-colors" />
             </Separator>
 
-            {/* Center Panel - Charts */}
             <Panel defaultSize="60" minSize="30" id="charts" className="h-full">
               <div className="h-full py-4 px-1">
                 <div className="card h-full flex flex-col overflow-hidden">
@@ -247,12 +223,10 @@ function App() {
               </div>
             </Panel>
 
-            {/* Right Resize Handle */}
             <Separator className="w-1.5 flex items-center justify-center group hover:bg-border/50 transition-colors">
               <GripVertical size={12} className="text-muted group-hover:text-gray-300 transition-colors" />
             </Separator>
 
-            {/* Right Panel - Iteration Explorer */}
             <Panel defaultSize="20" minSize="15" id="explorer" className="h-full">
               <div className="h-full overflow-y-auto p-4 pl-1">
                 <IterationExplorer
@@ -269,7 +243,6 @@ function App() {
         </div>
       </main>
 
-      {/* Footer */}
       <footer className="flex-shrink-0 border-t border-border py-3 text-center text-xs text-muted">
         Browser-based simulation - All computations run locally on your device
       </footer>

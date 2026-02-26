@@ -1,22 +1,10 @@
-/**
- * Simulation Web Worker
- * 
- * Runs fictitious play simulations in a separate thread to keep the UI responsive.
- * Receives configuration, runs simulation in chunks, and posts progress updates.
- */
-
 /// <reference lib="webworker" />
 
 import { createSolver, stepChunk } from "../core/solver";
-import type { SolverConfig } from "../core/solver";
 import { getRandomZeroSumGame, getWang2025, Matrix } from "../core/games";
 import { mulberry32 } from "../core/rng";
 import { computeSimulationSummary, SimulationSummary } from "../core/stats";
 import type { TieBreakingRule, InitializationMode } from "../types/simulation";
-
-// ============================================================================
-// Types
-// ============================================================================
 
 export type SimMode = "random" | "mixed" | "custom" | "wang";
 
@@ -83,15 +71,7 @@ export interface WorkerErrorMessage {
 
 export type WorkerOutMessage = WorkerUpdateMessage | WorkerDoneMessage | WorkerErrorMessage;
 
-// ============================================================================
-// Worker State
-// ============================================================================
-
 let running = false;
-
-// ============================================================================
-// Message Handler
-// ============================================================================
 
 self.onmessage = (e: MessageEvent<WorkerInMessage>) => {
   const msg = e.data;
@@ -106,16 +86,11 @@ self.onmessage = (e: MessageEvent<WorkerInMessage>) => {
   }
 };
 
-// ============================================================================
-// Matrix Generation
-// ============================================================================
-
 function makeMatrices(cfg: SimConfig): { matrices: Matrix[]; seed: number } {
   const seed = cfg.seed ?? Math.floor(Math.random() * 1e9);
   const matrices: Matrix[] = [];
 
   if (cfg.mode === "custom") {
-    // Use custom matrix (default to 2x2 RPS if not provided)
     const matrix = cfg.customMatrix ?? [
       [0, -1],
       [1, 0],
@@ -125,13 +100,11 @@ function makeMatrices(cfg: SimConfig): { matrices: Matrix[]; seed: number } {
   }
 
   if (cfg.mode === "wang") {
-    // Wang 2025 construction (10x10)
     matrices.push(getWang2025());
     return { matrices, seed };
   }
 
   if (cfg.mode === "mixed") {
-    // Mixed sizes: cycle through selected sizes
     const sizes = cfg.sizes.length > 0 ? cfg.sizes : [3, 5, 7, 10];
     for (let i = 0; i < cfg.batch; i++) {
       const n = sizes[i % sizes.length];
@@ -140,62 +113,28 @@ function makeMatrices(cfg: SimConfig): { matrices: Matrix[]; seed: number } {
     return { matrices, seed };
   }
 
-  // Random mode: all games same size
   for (let i = 0; i < cfg.batch; i++) {
     matrices.push(getRandomZeroSumGame(cfg.sizeN, mulberry32(seed + i)));
   }
   return { matrices, seed };
 }
 
-// ============================================================================
-// Simulation Runner
-// ============================================================================
-
 function runSimulation(cfg: SimConfig) {
   running = true;
   const startTime = performance.now();
 
   try {
-    // Generate game matrices
     const { matrices, seed } = makeMatrices(cfg);
-    
-    // Build solver configuration
-    const solverRng = mulberry32(seed + 999999); // separate RNG stream for tie-breaking
-    const solverConfig: Partial<SolverConfig> = {
-      tieBreaking: cfg.tieBreaking,
-      initialization: cfg.initialization,
-      rng: solverRng,
-    };
-    
-    // Create solvers for each game (each gets its own RNG stream for initialization)
-    const solvers = matrices.map((m, i) => {
-      const initRng = mulberry32(seed + 500000 + i);
-      return createSolver(m, {
-        ...solverConfig,
-        rng: cfg.tieBreaking === "random"
-          ? mulberry32(seed + 1000000 + i)
-          : initRng,
-        // For initialization, temporarily use initRng, then switch to tie-breaking RNG
-      });
-    });
-    
-    // If initialization is random but tie-breaking is not random,
-    // the solver was created with initRng. That's fine since rng is only
-    // used for random tie-breaking at runtime.
-    // If both are random, we need separate RNG streams. Let's fix:
-    // Re-create solvers properly with initialization RNG first, then set tie-breaking RNG
+
+    // Separate RNG streams: one for initialization, one for runtime tie-breaking
     const solversFixed = matrices.map((m, i) => {
       const initRng = mulberry32(seed + 500000 + i);
       const tieRng = mulberry32(seed + 1000000 + i);
-      // createSolver uses config.rng for initialization (if random mode)
-      // and stepChunk uses config.rng for tie-breaking (if random mode)
-      // We need to use initRng during createSolver, then swap to tieRng
       const solver = createSolver(m, {
         tieBreaking: cfg.tieBreaking,
         initialization: cfg.initialization,
-        rng: initRng, // used for random initialization
+        rng: initRng,
       });
-      // Now swap to tie-breaking RNG for runtime
       solver.config.rng = tieRng;
       return solver;
     });
@@ -203,7 +142,6 @@ function runSimulation(cfg: SimConfig) {
     const totalIter = cfg.iterations;
     const chunkSize = cfg.chunk;
 
-    // Accumulate full results (only sent in final "done" message)
     const allIters: number[] = [];
     const allGaps: number[][] = matrices.map(() => []);
     const avgGaps: number[] = [];
@@ -229,7 +167,6 @@ function runSimulation(cfg: SimConfig) {
     while (running && current < totalIter) {
       const step = Math.min(chunkSize, totalIter - current);
 
-      // Run chunk for all games
       for (let i = 0; i < solversFixed.length; i++) {
         const { iters, gaps, finalRowStrategy, finalColStrategy, bestRowHistory: brRow, bestColHistory: brCol } = stepChunk(solversFixed[i], step);
         
@@ -241,13 +178,11 @@ function runSimulation(cfg: SimConfig) {
           }
         }
         
-        // Push gaps for this game
         for (let k = 0; k < gaps.length; k++) {
           allGaps[i].push(gaps[k]);
           dGaps[i].push(gaps[k]);
         }
         
-        // Push best response history for this game
         for (let k = 0; k < brRow.length; k++) {
           bestRowHistory[i].push(brRow[k]);
           bestColHistory[i].push(brCol[k]);
@@ -264,7 +199,6 @@ function runSimulation(cfg: SimConfig) {
         dColStrat[i].push(colArr);
       }
 
-      // Compute average gaps for each iteration in this chunk
       for (let k = 0; k < step; k++) {
         const iterIdx = current + k;
         let sum = 0;
@@ -278,7 +212,6 @@ function runSimulation(cfg: SimConfig) {
 
       current += step;
 
-      // Post delta update (throttled)
       const now = performance.now();
       if (now - lastUpdateTime >= updateInterval || current >= totalIter) {
         lastUpdateTime = now;
@@ -301,7 +234,6 @@ function runSimulation(cfg: SimConfig) {
           progress: (current / totalIter) * 100,
         } satisfies WorkerUpdateMessage);
 
-        // Clear delta buffers
         dIters = [];
         dGaps = matrices.map(() => []);
         dAvg = [];
@@ -313,11 +245,9 @@ function runSimulation(cfg: SimConfig) {
       }
     }
 
-    // Compute final summary
     const endTime = performance.now();
     const summary = computeSimulationSummary(allGaps, current, endTime - startTime);
 
-    // Post completion message
     self.postMessage({
       type: "done",
       summary,

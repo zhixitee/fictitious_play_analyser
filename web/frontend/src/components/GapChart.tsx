@@ -1,8 +1,3 @@
-/**
- * Real-time chart component for gap visualization.
- * Uses Recharts for rendering with log scale support.
- */
-
 import React, { useMemo, useState } from 'react';
 import {
   LineChart,
@@ -49,14 +44,12 @@ export function GapChart({
 }: GapChartProps) {
   const [selectedGame, setSelectedGame] = useState<number | null>(null);
 
-  // Generate chart data with theoretical bound
   const chartData = useMemo(() => {
     if (data.length === 0) return [];
 
     return data.map(point => {
       const enhanced: Record<string, number> = { ...point };
       
-      // Add theoretical bound: 1/sqrt(t)
       if (point.iteration > 0) {
         enhanced.theoretical = 1 / Math.sqrt(point.iteration);
       }
@@ -65,7 +58,6 @@ export function GapChart({
     });
   }, [data]);
 
-  // Custom tooltip formatter
   const formatTooltip = (value: number) => {
     if (typeof value !== 'number') return value;
     return value.toExponential(4);
@@ -91,7 +83,6 @@ export function GapChart({
 
   return (
     <div className="chart-container">
-      {/* Chart Controls */}
       <div className="flex gap-4 mb-4 text-sm">
         <label className="flex items-center gap-2 cursor-pointer">
           <input
@@ -154,7 +145,6 @@ export function GapChart({
           />
           <Legend />
 
-          {/* Individual game lines */}
           {showIndividualGames &&
             Array.from({ length: gameCount }, (_, i) => (
               <Line
@@ -169,7 +159,6 @@ export function GapChart({
               />
             ))}
 
-          {/* Average line */}
           {showAverage && (
             <Line
               type="monotone"
@@ -182,7 +171,6 @@ export function GapChart({
             />
           )}
 
-          {/* Theoretical bound */}
           {showTheoreticalBound && (
             <Line
               type="monotone"
@@ -196,7 +184,6 @@ export function GapChart({
             />
           )}
 
-          {/* Iteration marker (vertical line) */}
           {markerIteration !== undefined && markerIteration > 0 && (
             <ReferenceLine
               x={markerIteration}
@@ -208,7 +195,6 @@ export function GapChart({
         </LineChart>
       </ResponsiveContainer>
 
-      {/* Game Legend with click to select */}
       <div className="flex flex-wrap gap-2 mt-4 text-xs">
         {Array.from({ length: gameCount }, (_, i) => (
           <button

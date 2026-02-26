@@ -1,15 +1,3 @@
-/**
- * useWorkerSimulation Hook
- * 
- * High-performance simulation state manager.
- * 
- * Architecture:
- * - Worker sends small delta payloads (~1-5KB) instead of full history
- * - Deltas are accumulated into a mutable ref (no React re-renders)
- * - A requestAnimationFrame loop syncs ref → React state at ≤60 fps
- * - This keeps the UI smooth even during 1M+ iteration simulations
- */
-
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { ControlsConfig } from "../components/ControlsPanel";
 import type { SimulationSummary } from "../core/stats";
@@ -60,7 +48,7 @@ const initialState: SimulationState = {
   bestColHistory: [],
 };
 
-/** Mutable data store kept outside React state to avoid GC pressure */
+// Mutable store outside React state to avoid GC pressure
 interface SimDataRef {
   iterations: number[];
   allGaps: number[][];
@@ -114,7 +102,6 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
   const lastSyncedVersion = useRef<number>(0);
   const runningRef = useRef(false);
 
-  // Add log entry
   const addLog = useCallback((message: string) => {
     const timestamp = new Date().toLocaleTimeString();
     setState((prev) => ({
@@ -159,7 +146,6 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
     };
   }, [state.status]); // re-subscribe when status changes (idle→running→completed)
 
-  // Cleanup worker on unmount
   useEffect(() => {
     return () => {
       runningRef.current = false;
@@ -183,7 +169,6 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
           // Matrices sent once on first update
           if (msg.matrices) {
             d.matrices = msg.matrices;
-            // Initialize per-game arrays if needed
             const g = msg.matrices.length;
             if (d.allGaps.length !== g) {
               d.allGaps = Array.from({ length: g }, () => []);
@@ -194,7 +179,6 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
             }
           }
 
-          // Append delta arrays
           const di = msg.deltaIterations;
           for (let k = 0; k < di.length; k++) {
             d.iterations.push(di[k]);
@@ -289,27 +273,22 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
     [addLog]
   );
 
-  // Start simulation
   const start = useCallback(
     (config: ControlsConfig) => {
-      // Terminate existing worker
       if (workerRef.current) {
         workerRef.current.terminate();
       }
 
-      // Reset data ref
       dataRef.current = createEmptyDataRef();
       lastSyncedVersion.current = 0;
       runningRef.current = true;
 
-      // Reset state
       setState({
         ...initialState,
         status: "running",
         logs: [],
       });
 
-      // Create new worker
       const worker = new Worker(
         new URL("../workers/sim.worker.ts", import.meta.url),
         { type: "module" }
@@ -328,7 +307,6 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
 
       workerRef.current = worker;
 
-      // Build worker config
       const workerConfig: SimConfig = {
         mode: config.mode,
         iterations: config.iterations,
@@ -347,13 +325,11 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
         `Config: ${workerConfig.batch} games, ${workerConfig.iterations.toLocaleString()} iterations`
       );
 
-      // Start simulation
       worker.postMessage({ type: "start", config: workerConfig });
     },
     [handleWorkerMessage, addLog]
   );
 
-  // Stop simulation
   const stop = useCallback(() => {
     if (workerRef.current) {
       workerRef.current.postMessage({ type: "stop" });
@@ -361,7 +337,6 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
     }
   }, [addLog]);
 
-  // Reset
   const reset = useCallback(() => {
     runningRef.current = false;
     if (rafRef.current) cancelAnimationFrame(rafRef.current);

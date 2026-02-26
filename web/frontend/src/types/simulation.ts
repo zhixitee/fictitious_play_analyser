@@ -1,17 +1,5 @@
-/**
- * TypeScript types for simulation state and WebSocket protocol.
- */
-
-// ============================================================================
-// Solver Configuration Enums
-// ============================================================================
-
 export type TieBreakingRule = 'lexicographic' | 'random' | 'anti-lexicographic';
 export type InitializationMode = 'standard' | 'random';
-
-// ============================================================================
-// Configuration Types
-// ============================================================================
 
 export type SimulationMode = 'random' | 'mixed' | 'custom';
 
@@ -25,10 +13,6 @@ export interface SimulationConfig {
   custom_matrix?: number[][];
   include_strategies?: boolean;
 }
-
-// ============================================================================
-// Job Types
-// ============================================================================
 
 export type JobStatus = 'pending' | 'running' | 'completed' | 'cancelled' | 'failed';
 
@@ -70,10 +54,6 @@ export interface JobSummary {
   // Timing
   execution_time_seconds: number;
 }
-
-// ============================================================================
-// WebSocket Message Types
-// ============================================================================
 
 export type WSMessageType = 'job_created' | 'progress' | 'completed' | 'cancelled' | 'error';
 
@@ -138,10 +118,6 @@ export interface WSError {
 
 export type WSMessage = WSJobCreated | WSProgress | WSCompleted | WSCancelled | WSError;
 
-// ============================================================================
-// UI State Types
-// ============================================================================
-
 export interface SimulationState {
   status: 'idle' | 'connecting' | 'running' | 'completed' | 'cancelled' | 'error';
   jobId: string | null;
@@ -173,12 +149,8 @@ export interface SimulationState {
 
 export interface ChartDataPoint {
   iteration: number;
-  [key: string]: number;  // Dynamic keys for each game
+  [key: string]: number;
 }
-
-// ============================================================================
-// Constants
-// ============================================================================
 
 export const DEFAULT_CONFIG: SimulationConfig = {
   mode: 'random',

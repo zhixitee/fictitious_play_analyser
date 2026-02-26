@@ -1,31 +1,14 @@
-/**
- * Fictitious Play Solver
- * 
- * Implements the fictitious play algorithm for zero-sum games.
- * Designed for chunked execution to enable real-time progress updates.
- * 
- * Supports configurable tie-breaking rules and initialization modes
- * to investigate Karlin's Conjectures (Strong vs. Weak) regarding
- * the O(t^{-1/2}) convergence rate.
- */
-
 import type { Matrix } from "./games";
 import type { TieBreakingRule, InitializationMode } from "../types/simulation";
 import type { RNG } from "./rng";
 import { randInt } from "./rng";
 
-/**
- * Configuration for solver behavior
- */
 export interface SolverConfig {
   tieBreaking: TieBreakingRule;
   initialization: InitializationMode;
   rng: RNG;
 }
 
-/**
- * Solver state containing current counts and iteration
- */
 export interface SolverState {
   matrix: Matrix;
   n: number;
@@ -36,9 +19,6 @@ export interface SolverState {
   config: SolverConfig;
 }
 
-/**
- * Result from a chunk of iterations
- */
 export interface ChunkResult {
   iters: Int32Array;
   gaps: Float64Array;
@@ -54,9 +34,6 @@ const defaultConfig: SolverConfig = {
   rng: Math.random,
 };
 
-/**
- * Create a new solver for a game matrix
- */
 export function createSolver(matrix: Matrix, config?: Partial<SolverConfig>): SolverState {
   const cfg: SolverConfig = { ...defaultConfig, ...config };
   const n = matrix.length;
@@ -78,7 +55,6 @@ export function createSolver(matrix: Matrix, config?: Partial<SolverConfig>): So
     countCol[0] = 1;
   }
 
-  // Initial t = sum of counts for the row player (they should be equal)
   const t = cfg.initialization === "random"
     ? countRow.reduce((a, b) => a + b, 0)
     : 1;
@@ -86,9 +62,6 @@ export function createSolver(matrix: Matrix, config?: Partial<SolverConfig>): So
   return { matrix, n, m, countRow, countCol, t, config: cfg };
 }
 
-/**
- * Compute dot product: A[row] . v
- */
 function dotRow(A: Matrix, row: number, v: Float64Array): number {
   let s = 0;
   const r = A[row];
@@ -98,9 +71,6 @@ function dotRow(A: Matrix, row: number, v: Float64Array): number {
   return s;
 }
 
-/**
- * Compute dot product: u^T . A[:, col]
- */
 function dotCol(u: Float64Array, A: Matrix, col: number): number {
   let s = 0;
   for (let i = 0; i < u.length; i++) {
@@ -109,19 +79,7 @@ function dotCol(u: Float64Array, A: Matrix, col: number): number {
   return s;
 }
 
-/**
- * Select best response index from payoffs using the configured tie-breaking rule.
- * 
- * For "maximize" direction: finds argmax of payoffs.
- * For "minimize" direction: finds argmin of payoffs.
- * 
- * Tie-breaking:
- * - lexicographic: lowest index among tied optima
- * - anti-lexicographic: highest index among tied optima
- * - random: uniform random among tied optima (using seeded RNG)
- * 
- * Uses a pre-allocated buffer to avoid per-iteration allocations for random mode.
- */
+// Argmax/argmin with tie-breaking: lexicographic, anti-lexicographic, or random.
 function selectBestResponse(
   payoffs: Float64Array,
   count: number,
@@ -165,13 +123,6 @@ function selectBestResponse(
   }
 }
 
-/**
- * Run a chunk of fictitious play iterations
- * 
- * @param state - Current solver state (modified in place)
- * @param steps - Number of iterations to run
- * @returns Chunk result with iterations, gaps, final strategies, and best response history
- */
 export function stepChunk(state: SolverState, steps: number): ChunkResult {
   const { matrix, countRow, countCol, config: cfg } = state;
   const n = countRow.length;
@@ -194,7 +145,6 @@ export function stepChunk(state: SolverState, steps: number): ChunkResult {
     const t = state.t + k;
     iters[k] = t;
 
-    // Compute current mixed strategies
     for (let i = 0; i < n; i++) {
       rowStrategy[i] = countRow[i] / t;
     }
@@ -202,35 +152,29 @@ export function stepChunk(state: SolverState, steps: number): ChunkResult {
       colStrategy[j] = countCol[j] / t;
     }
 
-    // Compute payoffs for all row actions: A * colStrategy
     for (let i = 0; i < n; i++) {
       rowPayoffs[i] = dotRow(matrix, i, colStrategy);
     }
 
-    // Compute payoffs for all col actions: rowStrategy^T * A
     for (let j = 0; j < m; j++) {
       colPayoffs[j] = dotCol(rowStrategy, matrix, j);
     }
 
-    // Select best responses using tie-breaking rule
     const bestRow = selectBestResponse(rowPayoffs, n, "max", cfg.tieBreaking, cfg.rng, tiedBuffer);
     const bestCol = selectBestResponse(colPayoffs, m, "min", cfg.tieBreaking, cfg.rng, tiedBuffer);
 
     bestRowHistory[k] = bestRow;
     bestColHistory[k] = bestCol;
 
-    // Duality gap = max row payoff - min col payoff
+    // duality gap = max row payoff - min col payoff
     gaps[k] = rowPayoffs[bestRow] - colPayoffs[bestCol];
 
-    // Update action counts
     countRow[bestRow] += 1;
     countCol[bestCol] += 1;
   }
 
-  // Update total iteration count
   state.t += steps;
 
-  // Compute final strategies for this chunk
   const finalRowStrategy = new Float64Array(n);
   const finalColStrategy = new Float64Array(m);
   for (let i = 0; i < n; i++) {
@@ -243,9 +187,6 @@ export function stepChunk(state: SolverState, steps: number): ChunkResult {
   return { iters, gaps, finalRowStrategy, finalColStrategy, bestRowHistory, bestColHistory };
 }
 
-/**
- * Get current strategies from solver state
- */
 export function getCurrentStrategies(state: SolverState): {
   rowStrategy: number[];
   colStrategy: number[];
@@ -255,9 +196,6 @@ export function getCurrentStrategies(state: SolverState): {
   return { rowStrategy, colStrategy };
 }
 
-/**
- * Compute current gap without advancing the state
- */
 export function getCurrentGap(state: SolverState): number {
   const { matrix, countRow, countCol, t, n, m } = state;
   

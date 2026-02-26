@@ -1,8 +1,3 @@
-/**
- * Control panel component for simulation configuration.
- * Mirrors the PyQt GUI controls.
- */
-
 import React, { useState, useEffect } from 'react';
 import { Play, Square, RotateCcw } from 'lucide-react';
 import { SimulationConfig, SimulationMode, SimulationState, JobSummary, DEFAULT_CONFIG } from '../types/simulation';
@@ -76,7 +71,6 @@ export function ControlPanel({
         Simulation Controls
       </h2>
 
-      {/* Mode Selection */}
       <div className="space-y-2">
         <label className="block text-sm text-muted">Mode</label>
         <select
@@ -91,7 +85,6 @@ export function ControlPanel({
         </select>
       </div>
 
-      {/* Mixed Size Configuration */}
       {mode === 'mixed' && (
         <div className="space-y-2">
           <label className="block text-sm text-muted">Game Sizes</label>
@@ -114,7 +107,6 @@ export function ControlPanel({
         </div>
       )}
 
-      {/* Custom Matrix Editor */}
       {mode === 'custom' && (
         <div className="space-y-2">
           <label className="block text-sm text-muted">Custom Matrix</label>
@@ -174,7 +166,6 @@ export function ControlPanel({
         </div>
       )}
 
-      {/* Batch Size */}
       <div className="space-y-2">
         <label className="block text-sm text-muted">Batch Size</label>
         <input
@@ -202,7 +193,6 @@ export function ControlPanel({
         )}
       </div>
 
-      {/* Iterations */}
       <div className="space-y-2">
         <label className="block text-sm text-muted">Iterations</label>
         <input
@@ -217,7 +207,6 @@ export function ControlPanel({
         />
       </div>
 
-      {/* Chunk Size */}
       <div className="space-y-2">
         <label className="block text-sm text-muted">Chunk Size</label>
         <input
@@ -232,7 +221,6 @@ export function ControlPanel({
         />
       </div>
 
-      {/* Seed */}
       <div className="space-y-2">
         <label className="block text-sm text-muted">Random Seed</label>
         <div className="flex gap-2">
@@ -256,7 +244,6 @@ export function ControlPanel({
         </div>
       </div>
 
-      {/* Control Buttons */}
       <div className="flex gap-2 pt-4 border-t border-border">
         {!isRunning ? (
           <button
@@ -285,14 +272,12 @@ export function ControlPanel({
         </button>
       </div>
 
-      {/* Status Section */}
       <div className="pt-4 border-t border-border space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted">Status</span>
           <StatusBadge status={state.status} />
         </div>
 
-        {/* Progress Bar */}
         {(state.status === 'running' || state.status === 'completed') && (
           <div className="space-y-1">
             <div className="flex justify-between text-xs text-muted">
@@ -308,7 +293,6 @@ export function ControlPanel({
           </div>
         )}
 
-        {/* Current Stats */}
         {state.status !== 'idle' && (
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div>
@@ -331,14 +315,12 @@ export function ControlPanel({
           </div>
         )}
 
-        {/* Error Display */}
         {state.error && (
           <div className="bg-red-900/30 border border-red-700 rounded p-2 text-red-300 text-xs">
             {state.error}
           </div>
         )}
 
-        {/* Summary (when completed) */}
         {state.summary && <SummaryDisplay summary={state.summary} />}
       </div>
     </div>

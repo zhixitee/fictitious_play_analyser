@@ -1,21 +1,8 @@
-/**
- * Controls Panel Component
- * 
- * Matches PyQt controls for simulation configuration:
- * - Mode selection (Random, Mixed, Custom, Wang 2025)
- * - Batch size, iterations, chunk size
- * - Seed (optional)
- * - Toggles for log scale, legend, plot mode
- * - Start/Stop buttons
- * - Progress bar and status
- */
-
 import React, { useState, useMemo } from "react";
 import { Play, Square, RotateCcw, Dice5 } from "lucide-react";
 import type { SimMode } from "../workers/sim.worker";
 import type { TieBreakingRule, InitializationMode } from "../types/simulation";
 
-/** Estimate peak memory usage based on simulation config */
 function estimateMemoryMB(config: {
   batchSize: number | '';
   iterations: number;
@@ -127,7 +114,6 @@ export function ControlsPanel({
         Simulation Controls
       </h2>
 
-      {/* Mode Selection */}
       <div className="space-y-2">
         <label className="block text-sm text-muted">Mode</label>
         <select
@@ -143,7 +129,6 @@ export function ControlsPanel({
         </select>
       </div>
 
-      {/* Random Size Selection */}
       {config.mode === "random" && (
         <div className="space-y-2">
           <label className="block text-sm text-muted">Matrix Size</label>
@@ -162,7 +147,6 @@ export function ControlsPanel({
         </div>
       )}
 
-      {/* Mixed Size Selection */}
       {config.mode === "mixed" && (
         <div className="space-y-2">
           <label className="block text-sm text-muted">Game Sizes</label>
@@ -188,7 +172,6 @@ export function ControlsPanel({
         </div>
       )}
 
-      {/* Batch Size */}
       <div className="space-y-2">
         <label className="block text-sm text-muted">Batch Size</label>
         <input
@@ -216,7 +199,6 @@ export function ControlsPanel({
         )}
       </div>
 
-      {/* Iterations */}
       <div className="space-y-2">
         <label className="block text-sm text-muted">Iterations</label>
         <input
@@ -245,7 +227,6 @@ export function ControlsPanel({
         />
       </div>
 
-      {/* Chunk Size */}
       <div className="space-y-2">
         <label className="block text-sm text-muted">Chunk Size</label>
         <input
@@ -264,7 +245,6 @@ export function ControlsPanel({
         />
       </div>
 
-      {/* Seed */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <label className="text-sm text-muted">Random Seed</label>
@@ -304,7 +284,6 @@ export function ControlsPanel({
         )}
       </div>
 
-      {/* Visualization Toggles */}
       <div className="space-y-2 pt-2 border-t border-border">
         <label className="block text-sm text-muted">Visualization</label>
         
@@ -329,7 +308,6 @@ export function ControlsPanel({
         </label>
       </div>
 
-      {/* Solver Settings */}
       <div className="space-y-2 pt-2 border-t border-border">
         <label className="block text-sm text-muted">Solver Settings</label>
 
@@ -361,13 +339,11 @@ export function ControlsPanel({
         </div>
       </div>
 
-      {/* Memory Usage Estimate */}
       <div className={`text-xs rounded border px-3 py-2 font-mono ${memoryColor}`}>
         Est. Memory: {estimatedMB < 1 ? estimatedMB.toFixed(2) : estimatedMB.toFixed(0)} MB
         <span className="ml-2 opacity-75">({memoryLabel})</span>
       </div>
 
-      {/* Control Buttons */}
       <div className="flex gap-2 pt-4 border-t border-border">
         {!isRunning ? (
           <button
@@ -396,14 +372,12 @@ export function ControlsPanel({
         </button>
       </div>
 
-      {/* Progress & Status */}
       <div className="pt-4 border-t border-border space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted">Status</span>
           <StatusBadge status={status} />
         </div>
 
-        {/* Progress Bar */}
         {(status === "running" || status === "completed") && (
           <div className="space-y-1">
             <div className="flex justify-between text-xs text-muted">
@@ -419,7 +393,6 @@ export function ControlsPanel({
           </div>
         )}
 
-        {/* Current Stats */}
         {status !== "idle" && (
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div>
@@ -438,7 +411,6 @@ export function ControlsPanel({
           </div>
         )}
 
-        {/* Error Display */}
         {error && (
           <div className="bg-red-900/30 border border-red-700 rounded p-2 text-red-300 text-xs">
             {error}

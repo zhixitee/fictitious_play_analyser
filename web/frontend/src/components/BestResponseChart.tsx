@@ -1,18 +1,3 @@
-/**
- * Best Response Dynamics Chart
- * 
- * Visualizes which strategy index was played at each iteration.
- * For counter-examples (e.g., Wang 2025 with lexicographic ties),
- * this reveals cyclic "staircase" patterns (1 -> 2 -> 3 -> ...).
- * For random tie-breaking, this should appear as noise.
- * 
- * Features:
- *  - Synchronized zoom domain from parent
- *  - Brush-to-zoom with ReferenceArea
- *  - Dynamic downsampling for performance
- *  - Hex.tech monospace aesthetic
- */
-
 import React, { useMemo, useState, useCallback } from "react";
 import {
   ScatterChart,
@@ -29,9 +14,8 @@ import { ZoomableChart } from "./charts/ZoomableChart";
 import { downsampleData, niceIterationTicks, formatIterationTick } from "./charts/useChartZoom";
 import type { Domain, ZoomActions } from "./charts/useChartZoom";
 
-// Colors for row and column players
-const ROW_COLOR = "#22c55e"; // green
-const COL_COLOR = "#ef4444"; // red
+const ROW_COLOR = "#22c55e";
+const COL_COLOR = "#ef4444";
 
 interface BestResponseChartProps {
   iterations: number[];
@@ -41,15 +25,10 @@ interface BestResponseChartProps {
   selectedIterationIndex?: number;
   logScale?: boolean;
   gameLabel?: string;
-  /** Synchronized zoom domain from parent (null = full range) */
   domain?: Domain;
-  /** Callback to set zoom domain (synchronized with other charts) */
   onBrushZoom?: (domain: Domain) => void;
-  /** Whether the chart is currently zoomed in */
   isZoomed?: boolean;
-  /** Reset zoom callback */
   onResetZoom?: () => void;
-  /** Full zoom actions for scroll-wheel zoom & drag-to-pan */
   zoomActions?: ZoomActions;
 }
 
@@ -74,7 +53,6 @@ export function BestResponseChart({
   onResetZoom,
   zoomActions,
 }: BestResponseChartProps) {
-  // Brush state for this chart
   const [brushStart, setBrushStart] = useState<string | number | null>(null);
   const [brushEnd, setBrushEnd] = useState<string | number | null>(null);
 
@@ -103,7 +81,7 @@ export function BestResponseChart({
     setBrushEnd(null);
   }, [brushStart, brushEnd, onBrushZoom]);
 
-  // Build full data, then downsample to visible domain
+  // Build full data, then downsample
   const rawData = useMemo(() => {
     if (!iterations.length || !bestRowHistory.length) return { row: [] as DataPoint[], col: [] as DataPoint[] };
 
@@ -111,7 +89,7 @@ export function BestResponseChart({
     const rowPts: DataPoint[] = [];
     const colPts: DataPoint[] = [];
 
-    const OFFSET = 0.22; // vertical offset so row sits slightly above col
+    const OFFSET = 0.22; // vertical jitter so row/col dots don't overlap
     for (let i = 0; i < len; i++) {
       rowPts.push({ iteration: iterations[i], action: bestRowHistory[i] + OFFSET });
       colPts.push({ iteration: iterations[i], action: bestColHistory[i] - OFFSET });
@@ -120,7 +98,6 @@ export function BestResponseChart({
     return { row: rowPts, col: colPts };
   }, [iterations, bestRowHistory, bestColHistory]);
 
-  // Downsample within visible domain
   const rowData = useMemo(() => downsampleData(rawData.row, domain, MAX_POINTS), [rawData.row, domain]);
   const colData = useMemo(() => downsampleData(rawData.col, domain, MAX_POINTS), [rawData.col, domain]);
 
@@ -225,12 +202,10 @@ export function BestResponseChart({
             labelFormatter={(label) => `Iter: ${Number(label).toLocaleString()}`}
           />
 
-          {/* Brush selection area */}
           {brushStart != null && brushEnd != null && (
             <ReferenceArea x1={brushStart} x2={brushEnd} strokeOpacity={0.3} fill="#22c55e" fillOpacity={0.1} />
           )}
 
-          {/* Selected iteration reference line */}
           {selectedIterationValue > 0 && (
             <ReferenceLine x={selectedIterationValue} stroke="#ffffff" strokeWidth={1} strokeDasharray="4 4" strokeOpacity={0.6} />
           )}

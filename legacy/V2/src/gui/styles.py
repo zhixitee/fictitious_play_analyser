@@ -1,6 +1,3 @@
-"""UI styling and theming for the GUI application."""
-
-
 DARK_THEME_STYLESHEET = """
 QMainWindow {
     background-color: #0b0c0e;
@@ -109,7 +106,6 @@ QTabBar::tab:hover:!selected {
 }
 """
 
-# Color palette for game visualization
 GAME_COLORS = [
     (51, 181, 229), (255, 152, 48), (115, 191, 105), (242, 73, 92), (179, 136, 255),
     (255, 213, 79), (77, 208, 225), (255, 110, 64), (174, 213, 129), (236, 64, 122)

@@ -5,19 +5,6 @@ from matplotlib.widgets import Button
 from mpl_toolkits.mplot3d import Axes3D
 
 class FPVisualizer:
-    """
-    Interactive real-time visualizer for Fictitious Play convergence.
-    
-    Features:
-    - Displays all individual games with different colors (adjustable opacity)
-    - Click on any game line to highlight it and view strategy weights
-    - Right-click to deselect and return to overview mode
-    - Scroll to zoom, drag to pan (like Desmos/Grafana)
-    - Keyboard shortcuts for reset and help
-    - Real-time updates during simulation
-    - Convergence analysis with Karlin and Wang bounds
-    - Interactive weight display panel with detailed console output
-    """
     GRAFANA_STYLE = {
         'axes.facecolor': '#161719',
         'figure.facecolor': '#0b0c0e',
@@ -30,7 +17,6 @@ class FPVisualizer:
         'keymap.quit': 'q'
     }
     
-    # Color palette for individual games
     GAME_COLORS = [
         '#33b5e5', '#ff9830', '#73bf69', '#f2495c', '#b388ff',
         '#ffd54f', '#4dd0e1', '#ff6e40', '#aed581', '#ec407a'
@@ -39,12 +25,10 @@ class FPVisualizer:
     def __init__(self, title="Fictitious Play Real-Time", batch_size=1, solvers=None):
         plt.rcParams.update(self.GRAFANA_STYLE)
         
-        # Enable interactive mode for real-time updates
         plt.ion() 
         self.fig = plt.figure(figsize=(20, 12))
         self.fig.canvas.manager.set_window_title(f"FP Dashboard - {title}")
         
-        # Layout: Top Left (Gap 2D), Top Right (Gap 3D), Bottom (Alpha, Ratio, Weights)
         gs = self.fig.add_gridspec(2, 3, height_ratios=[1.2, 1], width_ratios=[1.2, 1.2, 0.8])
         self.ax_gap = self.fig.add_subplot(gs[0, 0])
         self.ax_gap_3d = self.fig.add_subplot(gs[0, 1], projection='3d')
@@ -59,14 +43,12 @@ class FPVisualizer:
         self.avg_gaps = []
         self.all_gaps = None
         
-        # Track individual game lines
         self.individual_lines = []
-        self.selected_game_idx = None  # Which game is currently selected
+        self.selected_game_idx = None
         
-        # Candlestick tracking
         self.candle_lines = []
         self.candle_boxes = []
-        self.candle_interval = 100  # Show candlestick every 100 iterations
+        self.candle_interval = 100
         
         self._setup_ax_gap()
         self._setup_ax_gap_3d()
@@ -74,18 +56,15 @@ class FPVisualizer:
         self._setup_ax_ratio()
         self._setup_ax_weights()
         
-        # Pan/Zoom state
         self.pan_data = {'pressed': False, 'xpress': None, 'ypress': None, 'axes': None}
         self.EPS_PLOT = 1e-12
         
-        # Connect interactive events
         self.fig.canvas.mpl_connect('button_press_event', self._on_mouse_press)
         self.fig.canvas.mpl_connect('button_release_event', self._on_mouse_release)
         self.fig.canvas.mpl_connect('motion_notify_event', self._on_mouse_move)
         self.fig.canvas.mpl_connect('scroll_event', self._on_scroll)
         self.fig.canvas.mpl_connect('key_press_event', self._on_key)
         
-        # Hover annotations
         self.hover_annot = self.ax_gap.annotate("", xy=(0,0), xytext=(15,15), textcoords="offset points",
                                                 bbox=dict(boxstyle="round,pad=0.5", fc='#1f1f20', 
                                                          ec='#2e2e32', alpha=0.95),
@@ -109,7 +88,6 @@ class FPVisualizer:
         self.ax_gap.set_xscale('log')
         self.ax_gap.grid(True, alpha=0.3)
         
-        # Create individual game lines with anti-aliasing
         for i in range(self.batch_size):
             color = self.GAME_COLORS[i % len(self.GAME_COLORS)]
             line, = self.ax_gap.plot([], [], color=color, lw=1.5, alpha=1.0, 
@@ -120,7 +98,6 @@ class FPVisualizer:
                                      solid_joinstyle='round')  # Smooth line joins
             self.individual_lines.append(line)
         
-        # Plot Elements with smooth rendering
         self.line_avg, = self.ax_gap.plot([], [], color='#fade2a', lw=2.5, label="Average Gap", 
                                           zorder=100, antialiased=True, 
                                           solid_capstyle='round', solid_joinstyle='round')
@@ -129,7 +106,6 @@ class FPVisualizer:
         self.line_wang, = self.ax_gap.plot([], [], ':', color='#f2495c', alpha=0.8, lw=1.5, 
                                            label=r"Wang $\Omega(t^{-1/3})$", zorder=99, antialiased=True)
         
-        # Create dummy markers for legend
         self.legend_max = self.ax_gap.scatter([], [], s=80, color='#f2495c', marker='v', 
                                               alpha=0.9, label='Max Gap (every 100)', edgecolors='white', linewidths=1)
         self.legend_median = self.ax_gap.scatter([], [], s=100, color='#fade2a', marker='o', 
@@ -137,7 +113,6 @@ class FPVisualizer:
         self.legend_min = self.ax_gap.scatter([], [], s=80, color='#73bf69', marker='^', 
                                               alpha=0.9, label='Min Gap', edgecolors='white', linewidths=1)
         
-        # Only show legend if batch size is reasonable
         if self.batch_size <= 10:
             self.ax_gap.legend(loc='upper right', facecolor='#1f1f20', edgecolor='#2e2e32', 
                               ncol=2 if self.batch_size > 5 else 1, fontsize=9)
@@ -156,7 +131,6 @@ class FPVisualizer:
         self.ax_alpha.set_xscale('log')
         self.ax_alpha.grid(True, alpha=0.3)
         
-        # Set limits to focus on the interesting region [-1.0, 0.0]
         self.ax_alpha.set_ylim(-0.8, -0.2)
         
         self.line_alpha, = self.ax_alpha.plot([], [], color='#33b5e5', lw=2.0, alpha=0.9, 
@@ -173,10 +147,8 @@ class FPVisualizer:
         self.ax_ratio.set_xscale('log')
         self.ax_ratio.grid(True, alpha=0.3)
         
-        # Reference line at 1.0 - if gap matches the initial Karlin bound exactly
         self.ax_ratio.axhline(1.0, color='#73bf69', ls='--', alpha=0.6, lw=1.5)
         
-        # Ratio = Gap / (1/sqrt(t)) to find the constant C where Gap(t) ≈ C/sqrt(t)
         self.line_ratio, = self.ax_ratio.plot([], [], color='#ff9830', lw=2.5, 
                                               label=r"$Gap / (1/\sqrt{t})$",
                                               antialiased=True,
@@ -184,30 +156,24 @@ class FPVisualizer:
         self.ax_ratio.legend(loc='upper left', facecolor='#1f1f20')
     
     def _setup_ax_gap_3d(self):
-        """Setup the 3D duality gap plot."""
         self.ax_gap_3d.set_title("3D Duality Gap View", fontweight='bold', pad=15)
         self.ax_gap_3d.set_xlabel("Iteration (t)", fontweight='bold', labelpad=10)
         self.ax_gap_3d.set_ylabel("Game Index", fontweight='bold', labelpad=10)
         self.ax_gap_3d.set_zlabel("Duality Gap", fontweight='bold', labelpad=10)
         
-        # Set background colors for dark theme
         self.ax_gap_3d.xaxis.pane.fill = False
         self.ax_gap_3d.yaxis.pane.fill = False
         self.ax_gap_3d.zaxis.pane.fill = False
         self.ax_gap_3d.grid(True, alpha=0.3)
         
-        # Set equal aspect ratio for all axes
         self.ax_gap_3d.set_box_aspect([1, 1, 1])
         
-        # Store 3D plot lines
         self.lines_3d = []
         
     def _setup_ax_weights(self):
-        """Setup the weights display panel."""
         self.ax_weights.set_title("Strategy Weights (Click game to view)", fontweight='bold')
         self.ax_weights.axis('off')
         
-        # Create text object for displaying weights
         self.weights_text = self.ax_weights.text(0.05, 0.95, "No game selected\n\nClick on a game line\nin the duality gap plot",
                                                  transform=self.ax_weights.transAxes,
                                                  verticalalignment='top',
@@ -216,7 +182,6 @@ class FPVisualizer:
                                                  color='#d8d9da')
 
     def update(self, new_iterations, new_gaps):
-        """Called every chunk to update the UI."""
         # 1. Update Data Storage
         if len(self.iterations) == 0:
             self.iterations = new_iterations
@@ -310,7 +275,6 @@ class FPVisualizer:
         self.fig.canvas.flush_events()
     
     def _on_mouse_press(self, event):
-        """Handle mouse press for pan and click selection."""
         if event.inaxes == self.ax_gap:
             if event.button == 3:  # Right click to deselect
                 self._deselect_game()
@@ -338,12 +302,10 @@ class FPVisualizer:
             self.pan_data['ypress'] = event.ydata
     
     def _on_mouse_release(self, event):
-        """Handle mouse release to end pan."""
         self.pan_data['pressed'] = False
         self.pan_data['axes'] = None
     
     def _on_mouse_move(self, event):
-        """Handle mouse move for pan and hover."""
         # Pan handling
         if self.pan_data['pressed'] and event.inaxes == self.pan_data['axes']:
             if event.xdata is None or event.ydata is None:
@@ -389,7 +351,6 @@ class FPVisualizer:
             self.fig.canvas.draw_idle()
     
     def _on_scroll(self, event):
-        """Handle scroll for zoom."""
         if event.inaxes not in [self.ax_gap, self.ax_alpha, self.ax_ratio]:
             return
         
@@ -436,7 +397,6 @@ class FPVisualizer:
         self.fig.canvas.draw_idle()
     
     def _on_key(self, event):
-        """Handle keyboard shortcuts."""
         if event.key == 'r':  # Reset view
             if len(self.iterations) > 0:
                 t = len(self.iterations)
@@ -459,7 +419,6 @@ class FPVisualizer:
             print("  Right-click - Deselect game\\n")
     
     def _select_game(self, game_idx):
-        """Highlight a specific game and show its weights."""
         self.selected_game_idx = game_idx
         
         # Update line opacities - dim all except selected
@@ -485,7 +444,6 @@ class FPVisualizer:
         self.fig.canvas.draw_idle()
     
     def _deselect_game(self):
-        """Reset all games to default opacity."""
         self.selected_game_idx = None
         
         # Reset all line opacities
@@ -504,7 +462,6 @@ class FPVisualizer:
         self.fig.canvas.draw_idle()
     
     def _display_weights(self, game_idx):
-        """Display the current strategy weights for a selected game."""
         solver = self.solvers[game_idx]
         
         # Compute current strategies
@@ -554,7 +511,6 @@ class FPVisualizer:
         print(f"\n{'='*60}\n")
 
     def _update_3d_plot(self):
-        """Update the 3D plot with all games plus Karlin and Wang bounds."""
         # Clear previous 3D lines
         for line in self.lines_3d:
             line.remove()
@@ -624,7 +580,6 @@ class FPVisualizer:
         self.ax_gap_3d.view_init(elev=20, azim=45)
     
     def _update_candlesticks(self):
-        """Draw candlesticks showing max, median, and min gaps at regular intervals."""
         # Remove old candlesticks
         for line in self.candle_lines:
             line.remove()

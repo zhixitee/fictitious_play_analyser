@@ -1,9 +1,3 @@
-"""
-FastAPI Application Entry Point
-
-Launch with:
-    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-"""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -18,7 +12,6 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -27,14 +20,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
 app.include_router(jobs_router)
 app.include_router(ws_router)
 
 
 @app.get("/")
 async def root():
-    """Health check endpoint."""
     return {
         "service": "Fictitious Play Convergence API",
         "version": "1.0.0",
@@ -45,7 +36,6 @@ async def root():
 
 @app.get("/health")
 async def health():
-    """Detailed health check."""
     from .job_manager import job_manager
     jobs = await job_manager.list_jobs()
     

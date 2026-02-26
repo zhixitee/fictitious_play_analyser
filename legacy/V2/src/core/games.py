@@ -1,18 +1,11 @@
-"""Game matrix generators for Fictitious Play experiments."""
 import numpy as np
 
 
 class GameFactory:
-    """Factory for generating various game matrices."""
-    
+
     @staticmethod
     def get_wang_2025():
-        """
-        Wang (2025) lower bound construction: Ω(t^(-1/3)) convergence.
-        
-        Augmented Rock-Paper-Scissors game demonstrating slow convergence,
-        disproving Karlin's strong conjecture of universal O(t^(-1/2)) rate.
-        """
+        # Wang (2025) lower bound: augmented RPS achieving Ω(t^(-1/3)) convergence.
         A_rps = np.array([
             [0, -1, 1], 
             [1, 0, -1], 
@@ -49,7 +42,6 @@ class GameFactory:
 
     @staticmethod
     def get_random_game(n_rows, m_cols, seed):
-        """Generate random zero-sum game (skew-symmetric if square)."""
         rng = np.random.default_rng(seed)
         
         if n_rows == m_cols:

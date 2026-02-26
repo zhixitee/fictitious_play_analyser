@@ -1,7 +1,3 @@
-/**
- * Custom matrix editor component.
- */
-
 import React, { useState, useCallback } from 'react';
 
 interface MatrixEditorProps {
@@ -74,7 +70,6 @@ export function MatrixEditor({
 
   return (
     <div className="space-y-3">
-      {/* Size Controls */}
       <div className="flex gap-4 items-center text-sm">
         <div className="flex items-center gap-2">
           <span className="text-muted">Rows:</span>
@@ -102,7 +97,6 @@ export function MatrixEditor({
         </div>
       </div>
 
-      {/* Template Buttons */}
       <div className="flex gap-2 flex-wrap">
         <button
           onClick={() => applyTemplate('zero-sum')}
@@ -127,7 +121,6 @@ export function MatrixEditor({
         </button>
       </div>
 
-      {/* Matrix Grid */}
       <div className="overflow-x-auto">
         <table className="border-collapse">
           <thead>

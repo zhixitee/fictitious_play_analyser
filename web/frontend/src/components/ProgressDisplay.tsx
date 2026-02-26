@@ -1,7 +1,3 @@
-/**
- * Progress display component showing simulation status.
- */
-
 import React from 'react';
 import { SimulationState, JobSummary } from '../types/simulation';
 
@@ -31,20 +27,17 @@ export function ProgressDisplay({ state }: ProgressDisplayProps) {
 
   return (
     <div className="card space-y-4">
-      {/* Status Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-gray-200">Status</h2>
         <StatusBadge status={status} />
       </div>
 
-      {/* Job ID */}
       {jobId && (
         <div className="text-sm text-muted">
           Job ID: <span className="font-mono text-gray-300">{jobId}</span>
         </div>
       )}
 
-      {/* Progress Bar */}
       <div className="space-y-1">
         <div className="flex justify-between text-sm text-muted">
           <span>Progress</span>
@@ -58,7 +51,6 @@ export function ProgressDisplay({ state }: ProgressDisplayProps) {
         </div>
       </div>
 
-      {/* Current Stats */}
       <div className="grid grid-cols-2 gap-4 text-sm">
         <div>
           <div className="text-muted">Iteration</div>
@@ -80,14 +72,12 @@ export function ProgressDisplay({ state }: ProgressDisplayProps) {
         </div>
       </div>
 
-      {/* Error Display */}
       {error && (
         <div className="bg-red-900/30 border border-red-700 rounded p-3 text-red-300 text-sm">
           {error}
         </div>
       )}
 
-      {/* Summary (when completed) */}
       {summary && <SummaryTable summary={summary} />}
     </div>
   );

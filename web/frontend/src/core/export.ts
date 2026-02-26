@@ -1,15 +1,6 @@
-/**
- * Export Functions
- * 
- * Functions for exporting simulation results to CSV and other formats.
- */
-
 import type { SimulationSummary } from "./stats";
 import type { Matrix } from "./games";
 
-/**
- * Generate CSV content from simulation data
- */
 export function generateCSV(
   iterations: number[],
   allGaps: number[][],
@@ -17,7 +8,6 @@ export function generateCSV(
 ): string {
   const gameCount = allGaps.length;
   
-  // Header
   const headers = ["iteration"];
   for (let i = 0; i < gameCount; i++) {
     headers.push(`game_${i + 1}_gap`);
@@ -26,26 +16,21 @@ export function generateCSV(
   
   const lines = [headers.join(",")];
   
-  // Data rows
   for (let idx = 0; idx < iterations.length; idx++) {
     const iter = iterations[idx];
     const row = [iter.toString()];
     
-    // Per-game gaps
     for (let g = 0; g < gameCount; g++) {
       const gap = allGaps[g]?.[idx] ?? 0;
       row.push(gap.toExponential(6));
     }
-    
-    // Average gap
+
     row.push((avgGaps[idx] ?? 0).toExponential(6));
-    
-    // Karlin ratio
+
     const avgGap = avgGaps[idx] ?? 0;
     const karlin = avgGap * Math.sqrt(iter);
     row.push(karlin.toExponential(6));
-    
-    // Theoretical bound
+
     const theory = 1 / Math.sqrt(iter);
     row.push(theory.toExponential(6));
     
@@ -55,9 +40,6 @@ export function generateCSV(
   return lines.join("\n");
 }
 
-/**
- * Generate summary statistics as CSV
- */
 export function generateSummaryCSV(summary: SimulationSummary): string {
   const lines = [
     "metric,value",
@@ -85,9 +67,6 @@ export function generateSummaryCSV(summary: SimulationSummary): string {
   return lines.join("\n");
 }
 
-/**
- * Generate markdown report
- */
 export function generateMarkdownReport(
   summary: SimulationSummary,
   matrices?: Matrix[]
@@ -149,9 +128,6 @@ export function generateMarkdownReport(
   return lines.join("\n");
 }
 
-/**
- * Trigger file download in browser
- */
 export function downloadFile(
   content: string,
   filename: string,
@@ -170,9 +146,6 @@ export function downloadFile(
   URL.revokeObjectURL(url);
 }
 
-/**
- * Export results to CSV file
- */
 export function exportToCSV(
   iterations: number[],
   allGaps: number[][],
@@ -183,9 +156,6 @@ export function exportToCSV(
   downloadFile(content, filename, "text/csv");
 }
 
-/**
- * Export summary to CSV file
- */
 export function exportSummaryToCSV(
   summary: SimulationSummary,
   filename: string = "fp_summary.csv"
@@ -194,9 +164,6 @@ export function exportSummaryToCSV(
   downloadFile(content, filename, "text/csv");
 }
 
-/**
- * Export markdown report
- */
 export function exportToMarkdown(
   summary: SimulationSummary,
   matrices?: Matrix[],

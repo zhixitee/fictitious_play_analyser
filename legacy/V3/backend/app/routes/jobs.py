@@ -1,4 +1,3 @@
-"""REST API endpoints for job management."""
 import csv
 import io
 from fastapi import APIRouter, HTTPException
@@ -15,12 +14,6 @@ router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
 @router.post("/", response_model=JobCreateResponse)
 async def create_job(request: JobCreateRequest):
-    """
-    Create a new simulation job.
-    
-    Returns job ID and WebSocket URL for streaming progress.
-    The actual simulation starts when a WebSocket connection is established.
-    """
     try:
         job = await job_manager.create_job(request)
         return JobCreateResponse(
@@ -35,13 +28,11 @@ async def create_job(request: JobCreateRequest):
 
 @router.get("/", response_model=list[JobInfo])
 async def list_jobs():
-    """List all jobs."""
     return await job_manager.list_jobs()
 
 
 @router.get("/{job_id}", response_model=JobInfo)
 async def get_job(job_id: str):
-    """Get job information."""
     job = await job_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -50,7 +41,6 @@ async def get_job(job_id: str):
 
 @router.get("/{job_id}/summary", response_model=JobSummary)
 async def get_job_summary(job_id: str):
-    """Get final summary for a completed job."""
     job = await job_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -63,7 +53,6 @@ async def get_job_summary(job_id: str):
 
 @router.post("/{job_id}/cancel")
 async def cancel_job(job_id: str):
-    """Request job cancellation."""
     success = await job_manager.request_cancel(job_id)
     if not success:
         raise HTTPException(status_code=404, detail="Job not found or not cancellable")
@@ -72,7 +61,6 @@ async def cancel_job(job_id: str):
 
 @router.get("/{job_id}/export", response_model=ExportInfo)
 async def get_export_info(job_id: str):
-    """Get available export options for a job."""
     job = await job_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -89,18 +77,15 @@ async def get_export_info(job_id: str):
 
 @router.get("/{job_id}/export/csv")
 async def export_csv(job_id: str):
-    """Download simulation data as CSV."""
     job = await job_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     if job.status != JobStatus.COMPLETED:
         raise HTTPException(status_code=400, detail="Job not completed")
-    
-    # Generate CSV in memory
+
     output = io.StringIO()
     writer = csv.writer(output)
-    
-    # Header
+
     writer.writerow(['# Fictitious Play Simulation Data'])
     writer.writerow([f'# Job ID: {job_id}'])
     writer.writerow([f'# Seed: {job.config.seed}'])
@@ -108,8 +93,7 @@ async def export_csv(job_id: str):
     writer.writerow([f'# Number of Games: {len(job.all_gaps)}'])
     writer.writerow([])
     writer.writerow(['Game', 'Iteration', 'Gap'])
-    
-    # Data rows
+
     for game_idx in range(len(job.all_gaps)):
         for iter_idx, t in enumerate(job.all_iterations):
             if iter_idx < len(job.all_gaps[game_idx]):
@@ -127,14 +111,12 @@ async def export_csv(job_id: str):
 
 @router.get("/{job_id}/export/md")
 async def export_markdown(job_id: str):
-    """Download simulation data as Markdown."""
     job = await job_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     if job.status != JobStatus.COMPLETED:
         raise HTTPException(status_code=400, detail="Job not completed")
-    
-    # Generate Markdown
+
     lines = [
         f"# Fictitious Play Simulation Results",
         f"",
@@ -162,8 +144,7 @@ async def export_markdown(job_id: str):
             f"| Execution Time | {job.summary.execution_time_seconds:.2f}s |",
             f"",
         ])
-    
-    # Sample data
+
     lines.extend([
         f"## Sample Data (every 100th iteration)",
         f"",

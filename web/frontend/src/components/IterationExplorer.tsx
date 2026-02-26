@@ -1,15 +1,3 @@
-/**
- * Iteration Explorer Component
- * 
- * Provides:
- * - Iteration slider to scrub through simulation
- * - Game dropdown (Average or specific game)
- * - Strategy weights display (when specific game selected)
- * - Matrix display at current iteration
- * - Export functionality
- * - Summary statistics
- */
-
 import React, { useMemo } from "react";
 import { Download, FileText, Copy, ChevronDown, ChevronRight } from "lucide-react";
 import type { SimulationState } from "../hooks/useWorkerSimulation";
@@ -20,7 +8,6 @@ import {
   exportToMarkdown,
 } from "../core/export";
 
-// Color palette for games (matching PlotPanel)
 const GAME_COLORS = [
   "#4ade80", "#60a5fa", "#f472b6", "#facc15", "#a78bfa",
   "#fb923c", "#2dd4bf", "#f87171", "#818cf8", "#34d399",
@@ -96,23 +83,19 @@ export function IterationExplorer({
   const gameCount = state.allGaps.length;
   const maxIndex = state.iterations.length - 1;
   
-  // Current iteration value
   const currentIteration = hasData 
     ? state.iterations[Math.min(selectedIterationIndex, maxIndex)] || 0 
     : 0;
   
-  // Get gap at current iteration
   const currentGap = useMemo(() => {
     if (!hasData) return 0;
     const idx = Math.min(selectedIterationIndex, maxIndex);
     if (explorerGameIndex === -1 || explorerGameIndex === -2) {
-      // Average
       return state.avgGaps[idx] || 0;
     }
     return state.allGaps[explorerGameIndex]?.[idx] || 0;
   }, [hasData, selectedIterationIndex, maxIndex, explorerGameIndex, state.avgGaps, state.allGaps]);
   
-  // Convergence metrics at current iteration
   const metrics = useMemo(() => {
     const t = currentIteration || 1;
     const gap = currentGap;
@@ -132,14 +115,12 @@ export function IterationExplorer({
     };
   }, [currentIteration, currentGap]);
   
-  // Get matrix for selected game
   const selectedMatrix = useMemo(() => {
     if (explorerGameIndex < 0 || !hasData) return null;
     return state.matrices[explorerGameIndex] || null;
   }, [explorerGameIndex, hasData, state.matrices]);
   
-  // Get strategies at current iteration for selected game
-  // Strategies are stored per chunk, so find the chunk that corresponds to the current iteration index
+  // Strategies are stored per chunk; map iteration index to chunk index
   const currentStrategies = useMemo(() => {
     if (explorerGameIndex < 0 || !hasData) return null;
     
@@ -148,15 +129,9 @@ export function IterationExplorer({
     
     if (!rowStrats || !colStrats || rowStrats.length === 0) return null;
     
-    // The strategies array has one entry per chunk
-    // We need to map the selectedIterationIndex to a chunk index
-    // If chunk size is C and we have N iterations total, chunk index = floor(iterationIndex / C)
-    // But since we don't know chunk size here, we can approximate:
-    // strategies.length chunks for iterations.length iterations
     const totalIterations = state.iterations.length;
     const numChunks = rowStrats.length;
     
-    // Map iteration index to chunk index
     const chunkIndex = Math.min(
       Math.floor((selectedIterationIndex / totalIterations) * numChunks),
       numChunks - 1
@@ -168,7 +143,6 @@ export function IterationExplorer({
     };
   }, [explorerGameIndex, hasData, selectedIterationIndex, state.rowStrategies, state.colStrategies, state.iterations.length]);
   
-  // Export handlers
   const handleExportCSV = () => {
     if (state.iterations.length === 0) return;
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -197,7 +171,6 @@ export function IterationExplorer({
         Iteration Explorer
       </h2>
 
-      {/* Game View Controls */}
       <div className="space-y-2">
         <label className="block text-sm text-muted">View Game</label>
         <select
@@ -216,7 +189,6 @@ export function IterationExplorer({
         </select>
       </div>
 
-      {/* Iteration Slider */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <label className="text-sm text-muted">Iteration</label>
@@ -240,7 +212,6 @@ export function IterationExplorer({
         </div>
       </div>
 
-      {/* Current Metrics */}
       {hasData && (
         <CollapsibleSection title="Current Metrics" defaultOpen={true}>
           <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
@@ -265,11 +236,9 @@ export function IterationExplorer({
         </CollapsibleSection>
       )}
 
-      {/* Strategy Probabilities (when specific game selected) */}
       {currentStrategies && (
         <CollapsibleSection title="Strategy Probabilities" defaultOpen={true}>
           <div className="space-y-3">
-            {/* Row Player Strategies */}
             <div>
               <h4 className="text-xs font-semibold text-gray-400 mb-1.5">Row Player (p)</h4>
               <div className="space-y-0.5">
@@ -284,7 +253,6 @@ export function IterationExplorer({
               </div>
             </div>
             
-            {/* Column Player Strategies */}
             <div>
               <h4 className="text-xs font-semibold text-gray-400 mb-1.5">Column Player (q)</h4>
               <div className="space-y-0.5">
@@ -302,7 +270,6 @@ export function IterationExplorer({
         </CollapsibleSection>
       )}
 
-      {/* Payoff Matrix (when specific game selected) */}
       {selectedMatrix && (
         <CollapsibleSection title={`Payoff Matrix - Game ${explorerGameIndex + 1} (${selectedMatrix.length}x${selectedMatrix[0].length})`}>
           <div className="overflow-x-auto">
@@ -342,14 +309,12 @@ export function IterationExplorer({
         </CollapsibleSection>
       )}
 
-      {/* Seed Display */}
       {state.seed !== null && (
         <div className="text-xs text-muted">
           Seed: <span className="font-mono text-gray-300">{state.seed}</span>
         </div>
       )}
 
-      {/* Log Area */}
       <CollapsibleSection title="Log" defaultOpen={false}>
         <div className="flex items-center justify-end mb-2">
           {state.logs.length > 0 && (
@@ -373,11 +338,9 @@ export function IterationExplorer({
         </div>
       </CollapsibleSection>
 
-      {/* Summary Statistics (only when completed) */}
       {state.summary && (
         <CollapsibleSection title="Summary Statistics">
           <div className="space-y-3">
-            {/* Execution info */}
             <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
               <span className="text-muted">Games:</span>
               <span className="font-mono">{state.summary.gamesCount}</span>
@@ -389,7 +352,6 @@ export function IterationExplorer({
               <span className="font-mono">{(state.summary.executionTimeMs / 1000).toFixed(2)}s</span>
             </div>
 
-            {/* Gap Statistics */}
             <div className="pt-2 border-t border-border">
               <h4 className="text-xs font-bold text-gray-400 mb-2">Final Gap Statistics</h4>
               <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
@@ -407,7 +369,6 @@ export function IterationExplorer({
               </div>
             </div>
 
-            {/* Karlin Ratio Statistics */}
             <div className="pt-2 border-t border-border">
               <h4 className="text-xs font-bold text-gray-400 mb-2">Karlin&apos;s Ratio (gap * sqrt(T))</h4>
               <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
@@ -422,7 +383,6 @@ export function IterationExplorer({
         </CollapsibleSection>
       )}
 
-      {/* Export Buttons */}
       <CollapsibleSection title="Export">
         <div className="space-y-2">
           <button

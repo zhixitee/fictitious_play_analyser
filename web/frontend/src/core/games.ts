@@ -1,26 +1,11 @@
-/**
- * Game Matrix Generation
- * 
- * Functions for generating zero-sum game matrices:
- * - Random skew-symmetric matrices
- * - Wang (2025) construction
- * - Custom templates
- */
-
 import { RNG, randUniform } from "./rng";
 
 export type Matrix = number[][];
 
-/**
- * Create a zero-filled matrix
- */
 export function zeros(n: number, m: number): Matrix {
   return Array.from({ length: n }, () => Array.from({ length: m }, () => 0));
 }
 
-/**
- * Transpose a matrix
- */
 export function transpose(A: Matrix): Matrix {
   const n = A.length;
   const m = A[0].length;
@@ -33,10 +18,7 @@ export function transpose(A: Matrix): Matrix {
   return T;
 }
 
-/**
- * Convert matrix to skew-symmetric form: (M - M^T) / 2
- * This ensures the game is zero-sum
- */
+// (M - M^T) / 2 ensures the game is zero-sum.
 export function skewSymmetrize(M: Matrix): Matrix {
   const n = M.length;
   const out = zeros(n, n);
@@ -48,11 +30,6 @@ export function skewSymmetrize(M: Matrix): Matrix {
   return out;
 }
 
-/**
- * Generate a random zero-sum (skew-symmetric) game matrix
- * @param n - Size of the square matrix (2..10)
- * @param rng - Random number generator
- */
 export function getRandomZeroSumGame(n: number, rng: RNG): Matrix {
   const M = zeros(n, n);
   for (let i = 0; i < n; i++) {
@@ -63,9 +40,6 @@ export function getRandomZeroSumGame(n: number, rng: RNG): Matrix {
   return skewSymmetrize(M);
 }
 
-/**
- * Rock-Paper-Scissors template (3x3)
- */
 export function getRPSGame(): Matrix {
   return [
     [0, -1, 1],
@@ -74,9 +48,6 @@ export function getRPSGame(): Matrix {
   ];
 }
 
-/**
- * Zero-sum diagonal game template
- */
 export function getDiagonalGame(n: number): Matrix {
   const M = zeros(n, n);
   for (let i = 0; i < n; i++) {
@@ -89,12 +60,7 @@ export function getDiagonalGame(n: number): Matrix {
   return M;
 }
 
-/**
- * Wang (2025) construction matrix (10x10)
- * 
- * This is a carefully constructed game that exhibits interesting
- * convergence properties for fictitious play analysis.
- */
+// Wang (2025) 10x10 construction with slow FP convergence properties.
 export function getWang2025(): Matrix {
   // Base RPS matrix (A_rps)
   const A_rps: Matrix = [
@@ -103,17 +69,14 @@ export function getWang2025(): Matrix {
     [-1, 1, 0],
   ];
 
-  // B matrix (scaled)
   const B: Matrix = [
     [71, 54, 75],
     [54, 21, 25],
     [75, 25, 50],
   ].map(row => row.map(x => (-1 / 900) * x));
 
-  // Build 9x9 block matrix M9
   const M9 = zeros(9, 9);
 
-  // Helper to write 3x3 block at (bi, bj)
   const put3 = (bi: number, bj: number, X: Matrix) => {
     for (let i = 0; i < 3; i++) {
       for (let j = 0; j < 3; j++) {
@@ -122,10 +85,8 @@ export function getWang2025(): Matrix {
     }
   };
 
-  // Negate matrix helper
   const neg = (X: Matrix) => X.map(r => r.map(v => -v));
 
-  // Fill the 3x3 block structure
   put3(0, 0, A_rps);
   put3(0, 1, B);
   put3(0, 2, neg(B));
@@ -136,33 +97,29 @@ export function getWang2025(): Matrix {
   put3(2, 1, neg(B));
   put3(2, 2, A_rps);
 
-  // U0 vector (from Wang's construction)
+  // U0 vector and adjustment terms from Wang's construction
   const U0 = [
     460 / 27, 136 / 27, 460 / 27,
     -169687 / 2700, -67513 / 2700, -1357 / 27,
     -5, 17, 12,
   ];
 
-  // Adjustment terms
   const delta = 1 / 2700;
   const base = 169687 / 2700;
   const add = [2 * delta, delta, 0, 2 * delta, delta, 0, 2 * delta, delta, 0];
   const U0_hat = U0.map((v, i) => v + base + add[i]);
 
-  // Build final 10x10 matrix
+  // Embed U0_hat as row 0 / col 0, M9 as bottom-right 9x9 block
   const M10 = zeros(10, 10);
 
-  // Top row (0, 1:) = -U0_hat
   for (let j = 1; j < 10; j++) {
     M10[0][j] = -U0_hat[j - 1];
   }
 
-  // Left column (1:, 0) = +U0_hat
   for (let i = 1; i < 10; i++) {
     M10[i][0] = U0_hat[i - 1];
   }
 
-  // Bottom-right 9x9 is M9
   for (let i = 0; i < 9; i++) {
     for (let j = 0; j < 9; j++) {
       M10[i + 1][j + 1] = M9[i][j];
@@ -172,9 +129,6 @@ export function getWang2025(): Matrix {
   return M10;
 }
 
-/**
- * Validate that a matrix is properly formed
- */
 export function validateMatrix(M: Matrix): { valid: boolean; error?: string } {
   if (!M || M.length < 2) {
     return { valid: false, error: "Matrix must be at least 2x2" };

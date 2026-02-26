@@ -1,14 +1,3 @@
-/**
- * ZoomableChart – reusable wrapper that adds:
- *  - Scroll-wheel zoom (centered on cursor)
- *  - Drag-to-pan (when zoomed in)
- *  - "Reset Zoom" button overlay (bottom-left)
- *
- * The brush-to-zoom (ReferenceArea) is still handled inside each chart
- * via Recharts mouse events.  This wrapper handles the DOM-level
- * interactions that Recharts doesn't expose.
- */
-
 import React, { useRef, useCallback, useState, type ReactNode } from "react";
 import { RotateCcw, Move, ZoomIn, ZoomOut } from "lucide-react";
 import type { ZoomActions } from "./useChartZoom";
@@ -57,12 +46,10 @@ export function ZoomableChart({
 }: ZoomableChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // ── Drag-to-pan state ───────────────────────────────────────────────────
   const [isPanning, setIsPanning] = useState(false);
   const panStartX = useRef<number>(0);
 
-  /** Convert a pixel X offset within the container to a 0..1 fraction
-   *  of the chart plotting area (excluding margins). */
+  // Maps pixel X to a 0..1 fraction of the chart plotting area (excluding margins)
   const pixelToFraction = useCallback(
     (clientX: number): number => {
       const el = containerRef.current;
@@ -78,7 +65,6 @@ export function ZoomableChart({
     [chartMarginLeft, chartMarginRight],
   );
 
-  // ── Scroll-wheel zoom ──────────────────────────────────────────────────
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
       if (!zoomActions || !fullDomain) return;
@@ -90,12 +76,10 @@ export function ZoomableChart({
     [zoomActions, fullDomain, pixelToFraction],
   );
 
-  // ── Drag-to-pan ────────────────────────────────────────────────────────
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (!isZoomed || !zoomActions || !fullDomain) return;
-      // Only start pan on middle-click or when Shift is held
-      // (left-click without shift is reserved for brush-to-zoom)
+      // Middle-click or shift+left-click to pan (left-click reserved for brush-to-zoom)
       if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
         e.preventDefault();
         setIsPanning(true);
@@ -114,7 +98,7 @@ export function ZoomableChart({
       if (plotWidth <= 0) return;
 
       const dx = e.clientX - panStartX.current;
-      const deltaFraction = -dx / plotWidth; // negative because drag-left = shift-right
+      const deltaFraction = -dx / plotWidth;
       panStartX.current = e.clientX;
       zoomActions.pan(deltaFraction, fullDomain);
     },
@@ -131,7 +115,6 @@ export function ZoomableChart({
     [isPanning],
   );
 
-  // ── Zoom button handlers ────────────────────────────────────────────────
   const handleZoomIn = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -152,7 +135,6 @@ export function ZoomableChart({
 
   return (
     <div className={`zoomable-chart h-full flex flex-col ${className}`}>
-      {/* Header row */}
       {(title || legend) && (
         <div className="flex items-center justify-between px-2 mb-1 flex-shrink-0">
           {title && (
@@ -164,7 +146,6 @@ export function ZoomableChart({
         </div>
       )}
 
-      {/* Chart body – captures wheel + pointer events */}
       <div
         ref={containerRef}
         className={`relative flex-1 min-h-0 ${isPanning ? "cursor-grabbing" : isZoomed ? "cursor-grab" : ""}`}
@@ -177,7 +158,6 @@ export function ZoomableChart({
       >
         {children}
 
-        {/* Zoom controls – bottom-left, fixed size across all charts */}
         <div className="absolute bottom-2 left-2 z-20 flex items-center gap-1">
           <button
             onClick={handleZoomIn}
@@ -227,7 +207,6 @@ export function ZoomableChart({
           </button>
         </div>
 
-        {/* Pan hint icon – subtle indicator when zoomed */}
         {isZoomed && !isPanning && (
           <div className="absolute top-1 right-2 z-10 text-gray-600 pointer-events-none"
                title="Shift+drag to pan, scroll to zoom">

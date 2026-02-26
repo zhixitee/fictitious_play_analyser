@@ -1,12 +1,3 @@
-/**
- * Matrix Editor Component
- * 
- * Editable matrix for custom game mode:
- * - Adjustable rows/cols (2..10)
- * - Grid input for values
- * - Template presets (zero-sum, diagonal, RPS)
- */
-
 import React from "react";
 import { getRPSGame, getDiagonalGame, zeros, Matrix } from "../core/games";
 
@@ -24,7 +15,6 @@ export function MatrixEditor({ matrix, onChange, disabled }: MatrixEditorProps) 
     const actualM = newM ?? newN;
     const newMatrix = zeros(newN, actualM);
     
-    // Copy existing values
     for (let i = 0; i < Math.min(n, newN); i++) {
       for (let j = 0; j < Math.min(m, actualM); j++) {
         newMatrix[i][j] = matrix[i]?.[j] ?? 0;
@@ -53,7 +43,6 @@ export function MatrixEditor({ matrix, onChange, disabled }: MatrixEditorProps) 
         onChange(zeros(n, n));
         break;
       case "antisym":
-        // Make current matrix skew-symmetric
         const skew = zeros(n, n);
         for (let i = 0; i < n; i++) {
           for (let j = 0; j < n; j++) {
@@ -67,7 +56,6 @@ export function MatrixEditor({ matrix, onChange, disabled }: MatrixEditorProps) 
 
   return (
     <div className="space-y-3">
-      {/* Size Controls */}
       <div className="flex gap-4 items-center">
         <div className="flex items-center gap-2">
           <label className="text-xs text-muted">Size:</label>
@@ -86,7 +74,6 @@ export function MatrixEditor({ matrix, onChange, disabled }: MatrixEditorProps) 
         </div>
       </div>
 
-      {/* Matrix Grid */}
       <div className="bg-gray-800 rounded p-2 overflow-x-auto">
         <table className="text-xs">
           <tbody>
@@ -112,7 +99,6 @@ export function MatrixEditor({ matrix, onChange, disabled }: MatrixEditorProps) 
         </table>
       </div>
 
-      {/* Templates */}
       <div className="flex flex-wrap gap-2">
         <button
           onClick={() => applyTemplate("zeros")}
@@ -144,7 +130,6 @@ export function MatrixEditor({ matrix, onChange, disabled }: MatrixEditorProps) 
         </button>
       </div>
 
-      {/* Hint */}
       <p className="text-xs text-muted">
         Zero-sum games have A + A<sup>T</sup> = 0 (skew-symmetric)
       </p>
