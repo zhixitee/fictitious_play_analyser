@@ -1,5 +1,5 @@
 export type TieBreakingRule = 'lexicographic' | 'random' | 'anti-lexicographic';
-export type InitializationMode = 'standard' | 'random';
+export type InitializationMode = 'standard' | 'random' | 'wang';
 
 export type SimulationMode = 'random' | 'mixed' | 'custom';
 

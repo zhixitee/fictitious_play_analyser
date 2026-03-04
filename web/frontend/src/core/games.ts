@@ -60,8 +60,9 @@ export function getDiagonalGame(n: number): Matrix {
   return M;
 }
 
-// Wang (2025) 10x10 construction with slow FP convergence properties.
-export function getWang2025(): Matrix {
+// ── Wang (2025) construction helpers ──────────────────────────────────────────
+
+function buildWang9x9(): Matrix {
   // Base RPS matrix (A_rps)
   const A_rps: Matrix = [
     [0, -1, 1],
@@ -97,11 +98,59 @@ export function getWang2025(): Matrix {
   put3(2, 1, neg(B));
   put3(2, 2, A_rps);
 
-  // U0 vector and adjustment terms from Wang's construction
+  return M9;
+}
+
+/**
+ * Wang (2025) prescribed initial utility U₀ for the 9×9 game.
+ *
+ * U₀ = [V₁·1 ; V₂·1 ; V₃·1] where V₁, V₂, V₃ are the 3×3 admissible
+ * matrices from Wang's Construction 1. This non-standard initialization
+ * bootstraps the periodic phase structure that produces gap = Θ(t^{−1/3}).
+ *
+ * In the FP dynamics, utility evolves as: U_{t+1} = U_t + A·e_{i_{t+1}}
+ * starting from this U₀ (not from the zero vector).
+ */
+export const WANG_INITIAL_UTILITY: Float64Array = Float64Array.from([
+  460 / 27,         //  V₁·1 [0]  ≈  17.037
+  136 / 27,         //  V₁·1 [1]  ≈   5.037
+  460 / 27,         //  V₁·1 [2]  ≈  17.037
+  -169687 / 2700,   //  V₂·1 [0]  ≈ −62.847
+  -67513 / 2700,    //  V₂·1 [1]  ≈ −25.005
+  -1357 / 27,       //  V₂·1 [2]  ≈ −50.259
+  -5,               //  V₃·1 [0]  = −5
+  17,               //  V₃·1 [1]  =  17
+  -12,              //  V₃·1 [2]  = −12
+]);
+
+/**
+ * Wang (2025) 9×9 game — Construction 1.
+ *
+ * Skew-symmetric block matrix: M = [A_rps, B, -B; -B, A_rps, B; B, -B, A_rps]
+ * where A_rps is 3×3 RPS and B is a symmetric perturbation.
+ *
+ * Requires non-standard initialization (WANG_INITIAL_UTILITY) and
+ * lexicographic tie-breaking to reproduce the Θ(t^{−1/3}) lower bound.
+ * The game is skew-symmetric (M = −Mᵀ), so FP is symmetric: x_t = y_t.
+ */
+export function getWang2025(): Matrix {
+  return buildWang9x9();
+}
+
+/**
+ * Wang (2025) 10×10 augmented game — Construction 2.
+ *
+ * Adds a dummy anchor action (row/col 0) to the 9×9 game so that
+ * standard initialization (and any tie-breaking rule) reproduces the
+ * same Θ(t^{−1/3}) trajectory without needing a prescribed U₀.
+ */
+export function getWang2025Augmented(): Matrix {
+  const M9 = buildWang9x9();
+
   const U0 = [
     460 / 27, 136 / 27, 460 / 27,
     -169687 / 2700, -67513 / 2700, -1357 / 27,
-    -5, 17, 12,
+    -5, 17, -12,
   ];
 
   const delta = 1 / 2700;
@@ -109,17 +158,14 @@ export function getWang2025(): Matrix {
   const add = [2 * delta, delta, 0, 2 * delta, delta, 0, 2 * delta, delta, 0];
   const U0_hat = U0.map((v, i) => v + base + add[i]);
 
-  // Embed U0_hat as row 0 / col 0, M9 as bottom-right 9x9 block
   const M10 = zeros(10, 10);
 
   for (let j = 1; j < 10; j++) {
     M10[0][j] = -U0_hat[j - 1];
   }
-
   for (let i = 1; i < 10; i++) {
     M10[i][0] = U0_hat[i - 1];
   }
-
   for (let i = 0; i < 9; i++) {
     for (let j = 0; j < 9; j++) {
       M10[i + 1][j + 1] = M9[i][j];

@@ -58,7 +58,7 @@ interface ControlsPanelProps {
   progress: number;
   currentIteration: number;
   avgGap: number;
-  status: "idle" | "running" | "completed" | "error";
+  status: "idle" | "running" | "finalizing" | "completed" | "error";
   error?: string;
   gameCount: number;
   serverStatus: ServerStatus;
@@ -93,7 +93,7 @@ export function ControlsPanel({
   const startTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (status === "running") {
+    if (status === "running" || status === "finalizing") {
       startTimeRef.current = Date.now();
       setElapsed(0);
       const interval = setInterval(() => {
@@ -103,7 +103,7 @@ export function ControlsPanel({
       }, 100);
       return () => clearInterval(interval);
     }
-  }, [status === "running"]);
+  }, [status === "running" || status === "finalizing"]);
 
   const handleSeedToggle = (checked: boolean) => {
     setUseSeed(checked);
@@ -159,7 +159,19 @@ export function ControlsPanel({
         <label className="block text-sm text-muted">Mode</label>
         <select
           value={config.mode}
-          onChange={(e) => onConfigChange({ mode: e.target.value as SimMode })}
+          onChange={(e) => {
+            const newMode = e.target.value as SimMode;
+            const updates: Partial<ControlsConfig> = { mode: newMode };
+            // Auto-select wang initialization and lexicographic tie-breaking for Wang 2025 game
+            if (newMode === "wang") {
+              updates.initialization = "wang";
+              updates.tieBreaking = "lexicographic";
+            } else if (config.initialization === "wang") {
+              // Revert to standard when leaving wang mode
+              updates.initialization = "standard";
+            }
+            onConfigChange(updates);
+          }}
           disabled={isRunning}
           className="w-full"
         >
@@ -371,7 +383,7 @@ export function ControlsPanel({
       </div>
 
       <div className="space-y-2 pt-2 border-t border-border">
-        <label className="block text-sm text-muted">Visualization</label>
+        <label className="block text-sm text-muted">Visualisation</label>
         
         <label className="flex items-center gap-2 cursor-pointer">
           <input
@@ -412,7 +424,7 @@ export function ControlsPanel({
         </div>
 
         <div className="space-y-1">
-          <label className="block text-xs text-muted">Initialization</label>
+          <label className="block text-xs text-muted">Initialisation</label>
           <select
             value={config.initialization}
             onChange={(e) => onConfigChange({ initialization: e.target.value as InitializationMode })}
@@ -421,7 +433,15 @@ export function ControlsPanel({
           >
             <option value="standard">Standard [1, 0, ..., 0]</option>
             <option value="random">Random Beliefs</option>
+            <option value="wang">Wang 2025 (9×9, prescribed U₀)</option>
           </select>
+          {config.initialization === "wang" && (
+            <p className="text-xs text-muted">
+              9×9 Construction 1: non-standard initial utility U₀ with
+              symmetric FP (x=y). Requires lexicographic tie-breaking.
+              Proof: gap = Θ(t<sup>−1/3</sup>), disproving Karlin O(t<sup>−1/2</sup>).
+            </p>
+          )}
         </div>
       </div>
 
@@ -479,7 +499,7 @@ export function ControlsPanel({
           <StatusBadge status={status} />
         </div>
 
-        {(status === "running" || status === "completed") && !isUnlimited && (
+        {(status === "running" || status === "finalizing" || status === "completed") && !isUnlimited && (
           <div className="space-y-1">
             <div className="flex justify-between text-xs text-muted">
               <span>Progress</span>
@@ -546,13 +566,22 @@ function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     idle: "bg-gray-700 text-gray-300",
     running: "bg-blue-700 text-blue-200 animate-pulse",
+    finalizing: "bg-yellow-700 text-yellow-200 animate-pulse",
     completed: "bg-green-700 text-green-200",
     error: "bg-red-700 text-red-200",
   };
 
+  const labels: Record<string, string> = {
+    idle: "IDLE",
+    running: "RUNNING",
+    finalizing: "FINALISING",
+    completed: "COMPLETED",
+    error: "ERROR",
+  };
+
   return (
     <span className={`px-2 py-0.5 rounded text-xs font-medium ${styles[status] || styles.idle}`}>
-      {status.toUpperCase()}
+      {labels[status] || status.toUpperCase()}
     </span>
   );
 }

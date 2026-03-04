@@ -1,4 +1,5 @@
 import type { Matrix } from "./games";
+import { WANG_INITIAL_UTILITY } from "./games";
 import type { TieBreakingRule, InitializationMode } from "../types/simulation";
 import type { RNG } from "./rng";
 import { randInt } from "./rng";
@@ -17,6 +18,14 @@ export interface SolverState {
   countCol: Float64Array;
   t: number;
   config: SolverConfig;
+  /**
+   * Wang (2025) 9×9 non-standard initialization.
+   * When set, this utility vector biases the best-response selection at every
+   * iteration: effective payoff = A·(count/t) + initialUtility/t.
+   * The bias decays as 1/t, matching the paper’s U_t = U₀ + A·x_t dynamics.
+   * The gap is still measured on the *unbiased* strategies.
+   */
+  initialUtility: Float64Array | null;
 }
 
 export interface ChunkResult {
@@ -40,6 +49,7 @@ export function createSolver(matrix: Matrix, config?: Partial<SolverConfig>): So
   const m = matrix[0].length;
   const countRow = new Float64Array(n);
   const countCol = new Float64Array(m);
+  let initialUtility: Float64Array | null = null;
   
   if (cfg.initialization === "random") {
     // Initialize counts with random integers 1..10
@@ -59,6 +69,24 @@ export function createSolver(matrix: Matrix, config?: Partial<SolverConfig>): So
         countCol[j] *= scale;
       }
     }
+  } else if (cfg.initialization === "wang") {
+    // Wang (2025) — 9×9 Construction 1 with non-standard initialization.
+    //
+    // The paper prescribes an initial utility U₀ that is NOT derivable from
+    // any count vector (the 9×9 skew-symmetric matrix is singular).
+    // The FP dynamics use: U_t = U₀ + A·x_t, and best response = argmax(U_t).
+    //
+    // We implement this by starting with zero counts (x₀ = 0) at t = 1 and
+    // adding U₀/t to the computed payoffs at each step. The bias naturally
+    // decays, producing the paper’s Θ(t^{−1/3}) gap trajectory.
+    //
+    // The game is skew-symmetric (M = −Mᵀ), so FP is symmetric: x_t = y_t.
+    // We enforce this invariant after each step.
+    initialUtility = new Float64Array(n);
+    for (let i = 0; i < Math.min(n, WANG_INITIAL_UTILITY.length); i++) {
+      initialUtility[i] = WANG_INITIAL_UTILITY[i];
+    }
+    // Counts start at zero — no actions played yet. t = 0.
   } else {
     // Standard: first action played once
     countRow[0] = 1;
@@ -67,9 +95,9 @@ export function createSolver(matrix: Matrix, config?: Partial<SolverConfig>): So
 
   const t = cfg.initialization === "random"
     ? countRow.reduce((a, b) => a + b, 0)
-    : 1;
+    : cfg.initialization === "wang" ? 0 : 1;
 
-  return { matrix, n, m, countRow, countCol, t, config: cfg };
+  return { matrix, n, m, countRow, countCol, t, config: cfg, initialUtility };
 }
 
 function dotRow(A: Matrix, row: number, v: Float64Array): number {
@@ -134,7 +162,7 @@ function selectBestResponse(
 }
 
 export function stepChunk(state: SolverState, steps: number): ChunkResult {
-  const { matrix, countRow, countCol, config: cfg } = state;
+  const { matrix, countRow, countCol, config: cfg, initialUtility } = state;
   const n = countRow.length;
   const m = countCol.length;
 
@@ -148,6 +176,10 @@ export function stepChunk(state: SolverState, steps: number): ChunkResult {
   const rowPayoffs = new Float64Array(n);
   const colPayoffs = new Float64Array(m);
 
+  // Biased payoff buffers for Wang mode (U₀-augmented best-response selection)
+  const biasedRowPayoffs = initialUtility ? new Float64Array(n) : null;
+  const biasedColPayoffs = initialUtility ? new Float64Array(m) : null;
+
   // Pre-allocate tie buffers (max size = max(n, m))
   const tiedBuffer = new Int32Array(Math.max(n, m));
 
@@ -155,32 +187,72 @@ export function stepChunk(state: SolverState, steps: number): ChunkResult {
     const t = state.t + k;
     iters[k] = t;
 
-    for (let i = 0; i < n; i++) {
-      rowStrategy[i] = countRow[i] / t;
+    let bestRow: number;
+    let bestCol: number;
+
+    if (t === 0 && initialUtility) {
+      // Wang mode, first step (t=0): x₀ = 0, no strategy formed yet.
+      // Use prescribed U₀ directly for best-response selection.
+      // For the row player: argmax(U₀).
+      // For the column player in skew-symmetric game: argmin(-U₀) = argmax(U₀).
+      bestRow = selectBestResponse(initialUtility, n, "max", cfg.tieBreaking, cfg.rng, tiedBuffer);
+      // Negate U₀ for column player’s perspective
+      for (let j = 0; j < m; j++) {
+        colPayoffs[j] = -initialUtility[j];
+      }
+      bestCol = selectBestResponse(colPayoffs, m, "min", cfg.tieBreaking, cfg.rng, tiedBuffer);
+      // Gap is 0 at t=0: no strategy pair exists yet
+      gaps[k] = 0;
+    } else {
+      for (let i = 0; i < n; i++) {
+        rowStrategy[i] = countRow[i] / t;
+      }
+      for (let j = 0; j < m; j++) {
+        colStrategy[j] = countCol[j] / t;
+      }
+
+      // Standard (unbiased) payoffs — used for gap computation
+      for (let i = 0; i < n; i++) {
+        rowPayoffs[i] = dotRow(matrix, i, colStrategy);
+      }
+      for (let j = 0; j < m; j++) {
+        colPayoffs[j] = dotCol(rowStrategy, matrix, j);
+      }
+
+      if (initialUtility && biasedRowPayoffs && biasedColPayoffs) {
+        // Wang mode (t ≥ 1): best-response uses U₀-biased payoffs.
+        // Effective utility = (A·count + U₀) / t = standard_payoff + U₀/t.
+        // For the row player (maximizer): add bias.
+        // For the column player (minimizer) in skew-symmetric game: subtract bias,
+        // ensuring argmin(col_biased) = argmax(row_biased) (symmetric FP).
+        const invT = 1 / t;
+        for (let i = 0; i < n; i++) {
+          biasedRowPayoffs[i] = rowPayoffs[i] + initialUtility[i] * invT;
+        }
+        for (let j = 0; j < m; j++) {
+          biasedColPayoffs[j] = colPayoffs[j] - initialUtility[j] * invT;
+        }
+        bestRow = selectBestResponse(biasedRowPayoffs, n, "max", cfg.tieBreaking, cfg.rng, tiedBuffer);
+        bestCol = selectBestResponse(biasedColPayoffs, m, "min", cfg.tieBreaking, cfg.rng, tiedBuffer);
+      } else {
+        bestRow = selectBestResponse(rowPayoffs, n, "max", cfg.tieBreaking, cfg.rng, tiedBuffer);
+        bestCol = selectBestResponse(colPayoffs, m, "min", cfg.tieBreaking, cfg.rng, tiedBuffer);
+      }
+
+      // duality gap = max row payoff - min col payoff (unbiased, on actual strategies)
+      gaps[k] = rowPayoffs[bestRow] - colPayoffs[bestCol];
     }
-    for (let j = 0; j < m; j++) {
-      colStrategy[j] = countCol[j] / t;
-    }
-
-    for (let i = 0; i < n; i++) {
-      rowPayoffs[i] = dotRow(matrix, i, colStrategy);
-    }
-
-    for (let j = 0; j < m; j++) {
-      colPayoffs[j] = dotCol(rowStrategy, matrix, j);
-    }
-
-    const bestRow = selectBestResponse(rowPayoffs, n, "max", cfg.tieBreaking, cfg.rng, tiedBuffer);
-    const bestCol = selectBestResponse(colPayoffs, m, "min", cfg.tieBreaking, cfg.rng, tiedBuffer);
-
-    bestRowHistory[k] = bestRow;
-    bestColHistory[k] = bestCol;
-
-    // duality gap = max row payoff - min col payoff
-    gaps[k] = rowPayoffs[bestRow] - colPayoffs[bestCol];
 
     countRow[bestRow] += 1;
     countCol[bestCol] += 1;
+
+    // Wang mode: game is skew-symmetric ⇒ enforce x_t = y_t to prevent
+    // floating-point drift from breaking the symmetric-FP invariant.
+    if (cfg.initialization === "wang") {
+      for (let j = 0; j < n; j++) {
+        countCol[j] = countRow[j];
+      }
+    }
   }
 
   state.t += steps;
@@ -318,8 +390,9 @@ export function validateChunkResult(
 
     // Check 4: Gap should satisfy Karlin bound O(1/√T) with generous safety factor
     // We use 10× the matrix Frobenius norm as the constant multiplier
+    // Skip for Wang mode: the whole point is gap = Θ(t^{−1/3}) > O(t^{−1/2})
     checks++;
-    if (t >= 10) {
+    if (t >= 10 && state.config.initialization !== "wang") {
       let frobSq = 0;
       for (let i = 0; i < n; i++) {
         for (let j = 0; j < m; j++) {

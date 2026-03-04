@@ -9,7 +9,7 @@ import type {
 } from "../workers/sim.worker";
 
 // State types
-export type SimulationStatus = "idle" | "running" | "completed" | "error";
+export type SimulationStatus = "idle" | "running" | "finalizing" | "completed" | "error";
 
 export interface SimulationState {
   status: SimulationStatus;
@@ -246,34 +246,36 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
           break;
         }
 
+        case "finalizing": {
+          setState((prev) => ({
+            ...prev,
+            status: "finalizing",
+          }));
+          addLog("Simulation complete — finalising data...");
+          break;
+        }
+
         case "done": {
           runningRef.current = false;
-          // Final sync uses the full arrays from the done message
+          // Use already-accumulated data from delta updates (done message is lightweight)
           const d = dataRef.current;
-          d.iterations = msg.iterations;
-          d.allGaps = msg.allGaps;
-          d.avgGaps = msg.avgGaps;
           d.matrices = msg.matrices;
           d.seed = msg.seed;
-          d.rowStrategies = msg.rowStrategies;
-          d.colStrategies = msg.colStrategies;
-          d.bestRowHistory = msg.bestRowHistory;
-          d.bestColHistory = msg.bestColHistory;
 
           setState((prev) => ({
             ...prev,
             status: "completed",
-            iterations: msg.iterations,
-            allGaps: msg.allGaps,
-            avgGaps: msg.avgGaps,
+            iterations: d.iterations,
+            allGaps: d.allGaps,
+            avgGaps: d.avgGaps,
             matrices: msg.matrices,
             summary: msg.summary,
             progress: 100,
             seed: msg.seed,
-            rowStrategies: msg.rowStrategies,
-            colStrategies: msg.colStrategies,
-            bestRowHistory: msg.bestRowHistory,
-            bestColHistory: msg.bestColHistory,
+            rowStrategies: d.rowStrategies,
+            colStrategies: d.colStrategies,
+            bestRowHistory: d.bestRowHistory,
+            bestColHistory: d.bestColHistory,
             validation: msg.validation,
           }));
           addLog(
@@ -508,7 +510,7 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
     start,
     stop,
     reset,
-    isRunning: state.status === "running",
+    isRunning: state.status === "running" || state.status === "finalizing",
     isCompleted: state.status === "completed",
     serverStatus,
   };

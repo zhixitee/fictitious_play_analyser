@@ -52,18 +52,15 @@ export interface WorkerUpdateMessage {
   validation: { totalChecks: number; violations: ValidationViolation[] } | null;
 }
 
+export interface WorkerFinalizingMessage {
+  type: "finalizing";
+}
+
 export interface WorkerDoneMessage {
   type: "done";
   summary: SimulationSummary;
-  iterations: number[];
-  allGaps: number[][];
-  avgGaps: number[];
   matrices: Matrix[];
   seed: number;
-  rowStrategies: number[][][];  // [game][iterIdx][action]
-  colStrategies: number[][][];  // [game][iterIdx][action]
-  bestRowHistory: number[][];   // [game][iterIdx]
-  bestColHistory: number[][];   // [game][iterIdx]
   validation: { totalChecks: number; violations: ValidationViolation[] };
 }
 
@@ -72,7 +69,7 @@ export interface WorkerErrorMessage {
   error: string;
 }
 
-export type WorkerOutMessage = WorkerUpdateMessage | WorkerDoneMessage | WorkerErrorMessage;
+export type WorkerOutMessage = WorkerUpdateMessage | WorkerFinalizingMessage | WorkerDoneMessage | WorkerErrorMessage;
 
 let running = false;
 
@@ -239,13 +236,16 @@ function runSimulation(cfg: SimConfig) {
           }
         }
         
-        // Store final strategy for this chunk (one per chunk, not per iteration)
-        const rowArr = Array.from(finalRowStrategy);
-        const colArr = Array.from(finalColStrategy);
-        rowStrategies[i].push(rowArr);
-        colStrategies[i].push(colArr);
-        dRowStrat[i].push(rowArr);
-        dColStrat[i].push(colArr);
+        // Sample strategies at the same rate as other arrays (one per chunk, but only sampled chunks)
+        const chunkEndIdx = current + step - 1;
+        if (chunkEndIdx % sampleInterval === 0 || isLastChunk) {
+          const rowArr = Array.from(finalRowStrategy);
+          const colArr = Array.from(finalColStrategy);
+          rowStrategies[i].push(rowArr);
+          colStrategies[i].push(colArr);
+          dRowStrat[i].push(rowArr);
+          dColStrat[i].push(colArr);
+        }
       }
 
       // Compute avg gaps only for sampled iterations
@@ -325,18 +325,13 @@ function runSimulation(cfg: SimConfig) {
     const endTime = performance.now();
     const summary = computeSimulationSummary(allGaps, current, endTime - startTime);
 
+    self.postMessage({ type: "finalizing" } satisfies WorkerFinalizingMessage);
+
     self.postMessage({
       type: "done",
       summary,
-      iterations: allIters,
-      allGaps,
-      avgGaps,
       matrices,
       seed,
-      rowStrategies,
-      colStrategies,
-      bestRowHistory,
-      bestColHistory,
       validation: { totalChecks: totalValidationChecks, violations: allViolations },
     } satisfies WorkerDoneMessage);
     

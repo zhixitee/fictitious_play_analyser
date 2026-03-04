@@ -203,12 +203,16 @@ async function runSimulation(ws: WebSocket, cfg: SimConfig): Promise<void> {
           }
         }
 
-        const rowArr = Array.from(finalRowStrategy);
-        const colArr = Array.from(finalColStrategy);
-        rowStrategies[i].push(rowArr);
-        colStrategies[i].push(colArr);
-        dRowStrat[i].push(rowArr);
-        dColStrat[i].push(colArr);
+        // Sample strategies at the same rate as other arrays (one per chunk, but only sampled chunks)
+        const chunkEndIdx = current + step - 1;
+        if (chunkEndIdx % sampleInterval === 0 || isLastChunk) {
+          const rowArr = Array.from(finalRowStrategy);
+          const colArr = Array.from(finalColStrategy);
+          rowStrategies[i].push(rowArr);
+          colStrategies[i].push(colArr);
+          dRowStrat[i].push(rowArr);
+          dColStrat[i].push(colArr);
+        }
       }
 
       // Compute avg gaps only for sampled iterations
@@ -295,23 +299,33 @@ async function runSimulation(ws: WebSocket, cfg: SimConfig): Promise<void> {
     const endTime = performance.now();
     const summary = computeSimulationSummary(allGaps, current, endTime - startTime);
 
+    // Signal client that computation is done and final message is being prepared
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "finalizing" }));
+    }
+
     const doneMsg = {
       type: "done" as const,
       summary,
-      iterations: allIters,
-      allGaps,
-      avgGaps,
       matrices,
       seed,
-      rowStrategies,
-      colStrategies,
-      bestRowHistory,
-      bestColHistory,
       validation: { totalChecks: totalValidationChecks, violations: allViolations },
     };
 
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(doneMsg));
+      try {
+        ws.send(JSON.stringify(doneMsg));
+      } catch (serializeErr) {
+        // Fallback: send minimal done without validation details
+        console.error(`[server] Failed to serialize done message: ${serializeErr}`);
+        ws.send(JSON.stringify({
+          type: "done",
+          summary,
+          matrices,
+          seed,
+          validation: { totalChecks: totalValidationChecks, violations: [] },
+        }));
+      }
     }
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
@@ -366,17 +380,21 @@ wss.on("connection", (ws) => {
   });
 });
 
+// Box width: 62 chars total (║ + 60 inner + ║)
+const W = 60;
+const line = (s: string) => `║${(`  ${s}`).padEnd(W)}║`;
+const blank = `║${' '.repeat(W)}║`;
 console.log(`
-╔══════════════════════════════════════════════════════════════╗
-║  FP Convergence — Local Simulation Server                   ║
-║                                                              ║
-║  WebSocket listening on ws://localhost:${String(PORT).padEnd(24)}║
-║  Node.js ${process.version.padEnd(49)}║
-║  Memory: ${formatMemory().padEnd(49)}║
-║                                                              ║
-║  Enable "Local Mode" in the frontend to connect.             ║
-║  Press Ctrl+C to stop.                                       ║
-╚══════════════════════════════════════════════════════════════╝
+╔${'═'.repeat(W)}╗
+${line('FP Convergence — Local Simulation Server')}
+${blank}
+${line(`WebSocket listening on ws://localhost:${PORT}`)}
+${line(`Node.js ${process.version}`)}
+${line(`Memory: ${formatMemory()}`)}
+${blank}
+${line('Enable "Local Mode" in the frontend to connect.')}
+${line('Press Ctrl+C to stop.')}
+╚${'═'.repeat(W)}╝
 `);
 
 // Periodic memory report
