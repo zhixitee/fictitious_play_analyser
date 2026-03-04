@@ -49,6 +49,16 @@ export function createSolver(matrix: Matrix, config?: Partial<SolverConfig>): So
     for (let j = 0; j < m; j++) {
       countCol[j] = randInt(cfg.rng, 1, 10);
     }
+    // Both count arrays must share the same total so that dividing by t
+    // produces valid probability distributions for both players.
+    const rowTotal = countRow.reduce((a, b) => a + b, 0);
+    const colTotal = countCol.reduce((a, b) => a + b, 0);
+    if (colTotal > 0 && colTotal !== rowTotal) {
+      const scale = rowTotal / colTotal;
+      for (let j = 0; j < m; j++) {
+        countCol[j] *= scale;
+      }
+    }
   } else {
     // Standard: first action played once
     countRow[0] = 1;
