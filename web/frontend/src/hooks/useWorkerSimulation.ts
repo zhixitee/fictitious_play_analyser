@@ -115,6 +115,7 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
   const rafRef = useRef<number>(0);
   const lastSyncedVersion = useRef<number>(0);
   const runningRef = useRef(false);
+  const wsIdRef = useRef(0); // monotonic ID to detect stale WS callbacks
 
   const addLog = useCallback((message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -345,6 +346,9 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
         workerRef.current = null;
       }
 
+      // Bump connection ID so stale callbacks from the old WS are ignored
+      const thisId = ++wsIdRef.current;
+
       dataRef.current = createEmptyDataRef();
       lastSyncedVersion.current = 0;
       runningRef.current = true;
@@ -367,6 +371,7 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
       wsRef.current = ws;
 
       ws.onopen = () => {
+        if (wsIdRef.current !== thisId) return; // stale
         setServerStatus("connected");
         addLog(`Connected to local server (Node.js process)`);
         addLog(`Starting simulation: ${config.mode} mode`);
@@ -375,6 +380,7 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
       };
 
       ws.onmessage = (event) => {
+        if (wsIdRef.current !== thisId) return; // stale
         try {
           const msg: WorkerOutMessage = JSON.parse(event.data as string);
           handleMessage(msg);
@@ -384,6 +390,7 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
       };
 
       ws.onerror = () => {
+        if (wsIdRef.current !== thisId) return; // stale
         setServerStatus("error");
         runningRef.current = false;
         setState((prev) => ({
@@ -395,6 +402,7 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
       };
 
       ws.onclose = () => {
+        if (wsIdRef.current !== thisId) return; // stale — old connection closing
         setServerStatus("disconnected");
         // If simulation was still running, the server closed unexpectedly
         if (runningRef.current) {
