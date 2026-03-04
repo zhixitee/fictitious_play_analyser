@@ -1,252 +1,184 @@
-# Fictitious Play Web Application
+# Fictitious Play — Web Application
 
-Web-based interface for the Fictitious Play Convergence Analyzer with real-time WebSocket streaming.
+Browser-based interface for the Fictitious Play Convergence Analyser with real-time WebSocket streaming and in-browser Web Worker execution.
 
 ## Architecture
 
 ```
 web/
-├── backend/                    # FastAPI backend
-│   ├── app/
-│   │   ├── main.py            # FastAPI entry point
-│   │   ├── config.py          # Configuration management
-│   │   ├── models.py          # Pydantic schemas & WS protocol
-│   │   ├── job_manager.py     # In-memory job state
-│   │   ├── worker.py          # Background simulation execution
-│   │   └── routes/
-│   │       ├── jobs.py        # REST endpoints
-│   │       └── websocket.py   # WebSocket handlers
-│   ├── requirements.txt
-│   └── Dockerfile
-├── frontend/                   # React + TypeScript
+├── frontend/                     # React + TypeScript SPA
 │   ├── src/
-│   │   ├── App.tsx            # Main application
-│   │   ├── hooks/
-│   │   │   └── useSimulation.ts   # WebSocket state management
+│   │   ├── App.tsx               # Root — resizable three-panel layout
+│   │   ├── core/                 # Pure solver engine (no UI deps)
+│   │   │   ├── solver.ts         # createSolver(), stepChunk()
+│   │   │   ├── games.ts          # Random, RPS, diagonal, Wang 2025
+│   │   │   ├── rng.ts            # Mulberry32 seeded PRNG
+│   │   │   ├── stats.ts          # Gap & Karlin summary statistics
+│   │   │   └── export.ts         # CSV generation
 │   │   ├── components/
-│   │   │   ├── ControlPanel.tsx   # Simulation controls
-│   │   │   ├── ProgressDisplay.tsx # Status & summary
-│   │   │   ├── GapChart.tsx       # Real-time visualization
-│   │   │   └── MatrixEditor.tsx   # Custom matrix input
+│   │   │   ├── ControlsPanel.tsx  # Simulation config & run controls
+│   │   │   ├── PlotPanel.tsx      # Zoomable duality gap chart
+│   │   │   ├── IterationExplorer.tsx  # Per-iteration strategy inspector
+│   │   │   ├── MatrixEditor.tsx   # Custom payoff matrix input
+│   │   │   ├── StatusPanel.tsx    # Summary statistics
+│   │   │   └── charts/           # Chart utilities & zoom hook
+│   │   ├── workers/
+│   │   │   └── sim.worker.ts     # Web Worker simulation loop
+│   │   ├── hooks/
+│   │   │   └── useWorkerSimulation.ts  # React hook (Worker + WS)
 │   │   └── types/
-│   │       └── simulation.ts      # TypeScript definitions
-│   ├── package.json
-│   └── Dockerfile
-└── docker-compose.yml
+│   │       └── simulation.ts     # Shared type definitions
+│   ├── server/
+│   │   └── localServer.ts        # Node.js WebSocket server
+│   ├── Dockerfile                # Multi-target build
+│   ├── nginx.conf                # Production nginx config
+│   └── package.json
+└── docker-compose.yml            # Container orchestration
 ```
 
 ## Quick Start
 
-### Local Development
+### Development (Browser-Only)
 
 ```bash
-# Backend (from web/backend directory)
-cd web/backend
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-
-# Frontend (from web/frontend directory)
 cd web/frontend
 npm install
 npm run dev
 ```
 
-Open http://localhost:8888 in your browser.
+Open **http://localhost:8888**. Simulations run in a Web Worker — no server needed.
 
-### Docker Compose
+### With Local Server
+
+For large simulations (10M+ iterations) or unlimited mode, run the Node.js server:
 
 ```bash
-# Development mode (with hot reload)
-cd web
-docker-compose --profile dev up
+# Standard heap
+npm run server
 
-# Production mode
-docker-compose up --build
+# 8 GB heap (recommended for large runs)
+npm run server:8g
 ```
 
+Enable **"Local Mode"** in the controls panel. The frontend connects via WebSocket on port 3001.
+
+### Docker
+
+```bash
+cd web
+
+# Browser-only (nginx serves static SPA)
+docker compose up
+
+# With simulation server
+docker compose --profile server up
+
+# Development with hot reload
+docker compose --profile dev up
+```
+
+## Execution Modes
+
+| Mode | How It Works | Best For |
+|------|--------------|----------|
+| **Web Worker** (default) | Solver runs in a browser worker thread | Quick experiments, no setup |
+| **Local Server** | Node.js server streams results over WebSocket | Large simulations, unlimited mode |
+
+Both modes use the same solver engine (`src/core/solver.ts`) and the same delta-based streaming protocol.
+
 ## WebSocket Protocol
+
+Communication uses **delta-based streaming** — each update contains only new data since the last message.
+
+### Message Flow
+
+```
+Client                          Server
+  │                               │
+  │──── start (SimConfig) ───────>│
+  │                               │
+  │<──── update (delta chunk) ────│  (repeated every chunk)
+  │<──── update (delta chunk) ────│
+  │         ...                   │
+  │<──── finalising ──────────────│
+  │<──── done (summary only) ─────│
+  │                               │
+  │──── stop ────────────────────>│  (optional: cancel early)
+```
 
 ### Message Types
 
 | Type | Direction | Description |
 |------|-----------|-------------|
-| `job_created` | Server → Client | Job accepted, simulation starting |
-| `progress` | Server → Client | Chunk completion with delta data |
-| `completed` | Server → Client | Simulation finished with summary |
-| `cancelled` | Server → Client | Job cancelled by user |
+| `start` | Client → Server | Begin simulation with config |
+| `stop` | Client → Server | Cancel running simulation |
+| `update` | Server → Client | Delta chunk: new gaps, strategies, best-response actions |
+| `finalising` | Server → Client | Computing final summary statistics |
+| `done` | Server → Client | Lightweight completion message (summary only) |
 | `error` | Server → Client | Error occurred |
 
-### Delta-Based Streaming
-
-Progress updates are **append-only** and contain only incremental data:
+### Update Payload (Delta)
 
 ```json
 {
-  "type": "progress",
-  "job_id": "abc123",
-  "current_iteration": 1000,
-  "total_iterations": 10000,
-  "progress_pct": 10.0,
-  "chunk_start": 900,
-  "chunk_size": 100,
-  "chunk_gaps": [0.0523, 0.0481, 0.0498],
-  "avg_gap": 0.0501,
-  "timestamp": 1706543210.123
+  "type": "update",
+  "iteration": 5000,
+  "deltaIterations": [4901, 4902, ...],
+  "deltaAllGaps": [[0.0523, 0.0481, ...], ...],
+  "deltaAvgGaps": [0.0501, ...],
+  "deltaRowStrategies": [[[0.33, 0.33, 0.34]], ...],
+  "deltaColStrategies": [[[0.33, 0.33, 0.34]], ...],
+  "matrices": null,
+  "avgGap": 0.0501
 }
 ```
 
-The client accumulates `chunk_gaps` into arrays for each game, avoiding full data retransmission.
+The client accumulates deltas into full arrays — no redundant retransmission.
 
-### WebSocket Endpoints
+## Game Modes
 
-| Endpoint | Description |
-|----------|-------------|
-| `/ws/simulation/{job_id}` | Connect to existing job |
-| `/ws/quick` | Create job and start immediately |
+| Mode | Description |
+|------|-------------|
+| **Random** | Skew-symmetric $n \times n$ matrix with entries from $U(-1, 1)$ |
+| **Mixed** | Batch of random games with different sizes (e.g. 3, 5, 7) |
+| **Custom** | User-defined payoff matrix via the built-in editor |
+| **Wang (2025)** | 9×9 lower-bound construction with prescribed $U_0$ initialisation |
 
-### Client Actions
+## Solver Options
 
-```json
-{ "action": "cancel" }
-```
-
-## REST API
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/jobs/` | Create new job |
-| `GET` | `/api/jobs/` | List all jobs |
-| `GET` | `/api/jobs/{id}` | Get job info |
-| `GET` | `/api/jobs/{id}/summary` | Get final summary |
-| `POST` | `/api/jobs/{id}/cancel` | Request cancellation |
-| `GET` | `/api/jobs/{id}/export/csv` | Download CSV |
-| `GET` | `/api/jobs/{id}/export/md` | Download Markdown |
-
-## Configuration
-
-### Backend Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `FP_HOST` | `0.0.0.0` | Server host |
-| `FP_PORT` | `8000` | Server port |
-| `FP_DEBUG` | `false` | Debug mode |
-| `FP_CORS_ORIGINS` | `["http://localhost:8888"]` | Allowed origins |
-| `FP_MAX_ITERATIONS` | `100000` | Max iterations limit |
-| `FP_MAX_BATCH_SIZE` | `10` | Max games per job |
-| `FP_MAX_CONCURRENT_JOBS` | `3` | Concurrent job limit |
-
-### Frontend Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `VITE_API_URL` | `""` | API base URL (same-origin) |
-| `VITE_WS_URL` | `""` | WebSocket URL (auto-detect) |
-
-## Deployment
-
-### Vercel Deployment
-
-**Important:** Vercel Serverless Functions have limitations that affect this application:
-
-1. **WebSocket Timeout:** Edge Runtime WebSockets have a 30-second idle timeout
-2. **Execution Time:** Maximum 10s (Hobby) or 60s (Pro) per request
-3. **No Background Tasks:** Serverless doesn't support long-running processes
-
-**Recommended Vercel Setup:**
-
-```
-Frontend: Deploy to Vercel (static site)
-Backend: Deploy to Railway, Render, or Fly.io
-```
-
-**Frontend Deployment (Vercel):**
-
-1. Connect your repo to Vercel
-2. Set root directory to `web/frontend`
-3. Set environment variables:
-   ```
-   VITE_API_URL=https://your-backend.railway.app
-   VITE_WS_URL=wss://your-backend.railway.app
-   ```
-
-### Railway/Render Deployment (Backend)
-
-```bash
-# Railway
-railway init
-railway up --dockerfile web/backend/Dockerfile
-
-# Or Render
-# Create new Web Service pointing to web/backend
-```
-
-### Local Docker Production
-
-```bash
-cd web
-docker-compose up --build -d
-
-# Access at http://localhost
-# API at http://localhost:8000
-```
-
-## Compute Philosophy
-
-This is a **proof-of-concept** designed for:
-
-- ✅ Small simulations on the server (≤50k iterations)
-- ✅ Quick demos and experimentation
-- ✅ Single-user scenarios
-
-For production workloads, the architecture supports:
-
-1. **Local Backend Mode:** Run the same API locally
-   ```bash
-   cd web/backend
-   uvicorn app.main:app --port 8000
-   # Point frontend to localhost:8000
-   ```
-
-2. **Client-Side Execution (Future):** The WebSocket protocol is designed to allow future client-side execution where the browser runs the solver and streams results back.
+| Option | Values | Description |
+|--------|--------|-------------|
+| **Tie-breaking** | `lexicographic`, `random`, `anti-lexicographic` | How to break ties among equally-good best responses |
+| **Initialisation** | `standard`, `random`, `wang` | How starting counts are set |
+| **Unlimited** | on/off | Run until manually stopped (local mode only) |
 
 ## Technology Stack
 
-### Backend
-- **FastAPI** - Modern Python web framework
-- **WebSockets** - Real-time bidirectional communication
-- **Pydantic** - Data validation and serialization
-- **NumPy/Numba** - High-performance numerical computation
-
-### Frontend
-- **React 18** - UI library
-- **TypeScript** - Type safety
-- **Recharts** - Charting library
-- **Tailwind CSS** - Utility-first styling
-- **Vite** - Build tool
+- **React 18** + **TypeScript** — UI framework
+- **Vite** — Build tool and dev server
+- **Tailwind CSS** — Styling
+- **Recharts** — Charting library
+- **Framer Motion** — Animations
+- **react-resizable-panels** — Resizable layout
+- **ws** — WebSocket server (Node.js)
+- **tsx** — TypeScript execution for the server
 
 ## Development
 
-### Backend Testing
+### Type-Check
 
 ```bash
-cd web/backend
-pip install pytest httpx pytest-asyncio
-pytest
+npx tsc --noEmit
 ```
 
-### Frontend Testing
+### Build
 
 ```bash
-cd web/frontend
-npm run lint
 npm run build
 ```
 
-### Type Checking
+### Lint
 
 ```bash
-# Frontend
-cd web/frontend
-npx tsc --noEmit
+npm run lint
 ```

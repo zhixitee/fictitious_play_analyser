@@ -1,70 +1,47 @@
 # Web Application Docker Compose
-# Run from project root: docker-compose -f web/docker-compose.yml up
-# Or from web/: docker-compose up
-
-version: '3.8'
+#
+# Production (browser-only):  docker compose -f web/docker-compose.yml up
+# With local server:          docker compose -f web/docker-compose.yml --profile server up
+# Development:                docker compose -f web/docker-compose.yml --profile dev up
 
 services:
-  # FastAPI Backend
-  backend:
-    build:
-      context: ..
-      dockerfile: web/backend/Dockerfile
-    container_name: fp-web-backend
-    ports:
-      - "8000:8000"
-    environment:
-      - FP_DEBUG=false
-      - FP_CORS_ORIGINS=["http://localhost:8888","http://localhost"]
-      - FP_MAX_ITERATIONS=100000
-      - FP_MAX_CONCURRENT_JOBS=3
-    restart: unless-stopped
-
-  # React Frontend (Production)
+  # ── Production: static SPA served by nginx ──────────────────────────────────
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: production
     container_name: fp-web-frontend
     ports:
       - "80:80"
-    depends_on:
-      - backend
     restart: unless-stopped
 
-  # Development mode - Frontend with hot reload
+  # ── Local simulation server (Node.js) ───────────────────────────────────────
+  # Activate with: --profile server
+  # The frontend connects to ws://localhost:3001 when "Local Mode" is enabled.
+  local-server:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: with-server
+    container_name: fp-local-server
+    ports:
+      - "3001:3001"
+    restart: unless-stopped
+    profiles:
+      - server
+
+  # ── Development: Frontend with hot reload ───────────────────────────────────
   frontend-dev:
     image: node:20-alpine
     container_name: fp-web-frontend-dev
     working_dir: /app
     ports:
       - "8888:8888"
+      - "3001:3001"
     volumes:
       - ./frontend:/app
       - /app/node_modules
     command: sh -c "npm install && npm run dev -- --host --port 8888"
-    environment:
-      - VITE_API_URL=http://localhost:8000
-      - VITE_WS_URL=ws://localhost:8000
-    depends_on:
-      - backend
-    profiles:
-      - dev
-
-  # Development mode - Backend with reload
-  backend-dev:
-    build:
-      context: ..
-      dockerfile: web/backend/Dockerfile
-    container_name: fp-web-backend-dev
-    ports:
-      - "8000:8000"
-    environment:
-      - FP_DEBUG=true
-      - FP_CORS_ORIGINS=["http://localhost:8888"]
-    volumes:
-      - ./backend/app:/app/app
-      - ../src:/app/src
-    command: uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
     profiles:
       - dev

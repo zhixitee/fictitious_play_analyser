@@ -1,236 +1,196 @@
-# Fictitious Play Convergence Analyzer
+# Fictitious Play Convergence Analyser
 
-[![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-production-success.svg)]()
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-18-61dafb.svg)](https://react.dev/)
+[![License](https://img.shields.io/badge/licence-MIT-green.svg)](LICENSE)
 
-A simulator for analyzing zero-sum game convergence using Fictitious Play algorithm with real-time visualization and analysis capabilities.
+A browser-based simulator for studying the convergence behaviour of the **Fictitious Play** algorithm in two-player zero-sum games, with real-time visualisation, statistical analysis, and data export. Built as part of a final-year dissertation.
+
+All computation runs entirely in the browser (via Web Workers) or optionally on a local Node.js server — no cloud backend required.
+
+![Fictitious Play Convergence Analyser](/img/image.png)
 
 ---
 
 ## Table of Contents
 
+- [What Is This?](#what-is-this)
+- [Key Features](#key-features)
 - [Quick Start](#quick-start)
-- [Installation](#installation)
-- [Features](#features)
-- [Project Structure](#project-structure)
-- [Architecture](#architecture)
-- [Usage Examples](#usage-examples)
 - [Docker](#docker)
-- [Modular Components](#modular-components)
 - [Theory & Background](#theory--background)
-- [Code Quality](#code-quality)
-- [Documentation](#documentation)
-- [Contributing](#contributing)
-- [License](#license)
+- [Legacy Python Versions](#legacy-python-versions)
+- [Licence](#licence)
+
+---
+
+## What Is This?
+
+**Fictitious Play** (Brown 1951) is an iterative algorithm for finding Nash equilibria in games. At each round, both players play a best response to the opponent's empirical mixed strategy. Robinson (1951) proved that in two-player zero-sum games the **duality gap** — the difference between each player's best-response payoff — converges to zero at rate $O(T^{-1/2})$.
+
+This project provides an interactive tool to:
+
+- **Simulate** Fictitious Play on random, custom, or structured zero-sum games
+- **Visualise** duality gap convergence in real time on a zoomable log-scale chart
+- **Inspect** strategy weight evolution and best-response action histories
+- **Analyse** Karlin's ratio ($\text{gap} \times \sqrt{T}$) and other summary statistics
+- **Export** results to CSV for further analysis
+- **Reproduce** the $\Theta(T^{-1/3})$ lower bound from Wang (2025) via a built-in 9×9 construction
+
+---
+
+## Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Game modes** | Random (2×2 – 10×10), mixed sizes, custom matrix editor, Wang (2025) 9×9 |
+| **Execution modes** | Browser Web Worker (default) or Local Node.js server with 8 GB heap |
+| **Real-time charts** | Zoomable duality gap plot, best-response action chart, strategy weight panels |
+| **Iteration explorer** | Scrub through iterations to inspect per-game strategy distributions |
+| **Solver options** | Lexicographic / random / anti-lexicographic tie-breaking; standard / random / Wang initialisation |
+| **Unlimited mode** | Run until manually stopped (local server mode only) |
+| **Statistics** | Gap mean, median, min, max, std; Karlin's ratio; theoretical bound comparison |
+| **Data export** | CSV download of full gap history and summary statistics |
+| **Scalability** | Adaptive downsampling to 50k display points; handles 10M+ iterations without OOM |
+| **Docker** | Multi-target Dockerfile with nginx (static) and Node.js (server) variants |
 
 ---
 
 ## Quick Start
 
-### Launch Applications
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) 20+ and npm
+
+### Install and Run
 
 ```bash
-# GUI Application (Interactive Desktop App)
-python gui_app.py
-
-# CLI Application (Terminal Mode with Comprehensive Plots)
-python cli_app.py --terminal --mode random --iter 10000 --batch 5
-
-# Interactive Visualizer (Matplotlib with Click Selection)
-python cli_app.py --mode mixed --sizes 3,5,7 --iter 5000
-
-# Export Data (CSV or Markdown)
-python cli_app.py --terminal --export results.csv --save-plots
+cd web/frontend
+npm install
+npm run dev
 ```
-![alt text](/img/image.png)
----
 
-## Installation
+Open **http://localhost:8888** in your browser. Everything runs locally in a Web Worker — no server needed.
 
-### Requirements
+### Using the Local Server (for large simulations)
 
-- Python 3.8 or higher
-- NumPy, Numba, Matplotlib, PyQt6, PyQtGraph, PyOpenGL
-
-### Install Dependencies
+The local Node.js server provides better performance and supports unlimited iterations:
 
 ```bash
-pip install -r requirements.txt
+# Standard (default heap)
+npm run server
+
+# With 8 GB heap (recommended for 10M+ iterations)
+npm run server:8g
 ```
 
-**Dependencies:**
-```
-numpy>=1.23.5,<2.3.0
-numba>=0.57.0
-matplotlib>=3.7.0
-PyQt6>=6.6.0
-PyQtGraph>=0.13.3
-PyOpenGL>=3.1.0
-```
+Then enable **"Local Mode"** in the controls panel. The frontend connects to the server over WebSocket on port 3001.
 
-## Usage Examples
+### Usage Guide
 
-### 1. Using Modular Core Components
-
-```python
-# Import core algorithms (no GUI/CLI dependencies)
-from src.core import FPSolver, GameFactory
-
-# Generate a random 10x10 zero-sum game
-matrix = GameFactory.get_random_game(10, 10, seed=42)
-
-# Create solver and run 1000 iterations
-solver = FPSolver(matrix)
-iterations, gaps = solver.step(steps=1000)
-
-# Analyze results
-print(f"Final duality gap: {gaps[-1]:.6e}")
-print(f"Karlin ratio: {gaps[-1] * np.sqrt(1000):.4f}")
-```
-
-### 2. Running Terminal Mode with Analysis
-
-```bash
-# Basic simulation
-python cli_app.py --terminal --mode random --iter 10000 --batch 5
-
-# Mixed sizes with export
-python cli_app.py --terminal --mode mixed --sizes 3,5,7,10 \
-    --iter 20000 --export results.csv --save-plots
-
-# Custom parameters
-python cli_app.py --terminal --mode random --iter 50000 \
-    --batch 10 --chunk 200 --seed 12345
-```
-
-### 3. GUI Mode Features
-
-```bash
-# Launch GUI
-python gui_app.py
-
-# Features available in GUI:
-# - Click on any game line to select and view weights
-# - Right-click to deselect
-# - Scroll to zoom in/out
-# - Drag to pan view
-# - Press 'r' to reset view
-# - Iteration slider for time-travel analysis
-# - Export current/all games to CSV/Markdown
-```
-
-### 4. Interactive Visualizer
-
-```bash
-# Launch with matplotlib visualizer
-python cli_app.py --mode random --iter 5000 --batch 8
-
-# Interactive features:
-# - Click lines to view strategy weights
-# - Real-time convergence tracking
-# - Candlestick gap statistics
-# - Hover for instant game info
-```
+1. **Choose a game mode**: Random generates skew-symmetric matrices; Mixed runs multiple sizes; Custom lets you edit the payoff matrix; Wang (2025) loads the 9×9 lower-bound construction.
+2. **Configure parameters**: Set iteration count, batch size, chunk size, tie-breaking rule, and initialisation mode.
+3. **Start the simulation**: Click the play button. The duality gap chart updates in real time.
+4. **Explore results**: Use the iteration slider and game selector in the right panel to inspect strategy weights at any point. Toggle individual game curves on the chart.
+5. **Export data**: Click the export button to download gap history and summary statistics as CSV.
 
 ---
 
 ## Docker
 
-The project includes Docker support for containerized execution, ensuring consistent environments across different systems.
-
 ### Prerequisites
 
-- [Docker](https://docs.docker.com/get-docker/) installed and running
-- [Docker Compose](https://docs.docker.com/compose/install/) (included with Docker Desktop)
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
 
-### Building the Image
+### Run
 
 ```bash
-# Build using docker-compose
-docker-compose build
+# Browser-only (static SPA served by nginx)
+docker compose -f web/docker-compose.yml up
 
-# Or build directly with docker
-docker build -t fp-analyzer .
+# With local Node.js simulation server
+docker compose -f web/docker-compose.yml --profile server up
+
+# Development with hot reload
+docker compose -f web/docker-compose.yml --profile dev up
 ```
 
-### Running with Docker Compose
+| Service | Description | Port |
+|---------|-------------|------|
+| `frontend` | Production nginx (static SPA) | 80 |
+| `local-server` | Node.js simulation server (profile: `server`) | 3001 |
+| `frontend-dev` | Vite dev server with hot reload (profile: `dev`) | 8888 |
+
+---
+
+## Theory & Background
+
+**Fictitious Play** was introduced by Brown (1951) as an iterative procedure for solving two-player games. At each step $t$:
+
+1. Each player computes a **best response** to the opponent's empirical frequency of play
+2. The empirical frequencies are updated to include the new actions
+3. The **duality gap** — the difference between the row player's best-response payoff and the column player's best-response payoff — measures distance from equilibrium
+
+**Robinson (1951)** proved that for zero-sum games, the duality gap converges to zero, establishing the rate $O(T^{-1/2})$.
+
+**Karlin's ratio** ($\text{gap} \times \sqrt{T}$) normalises the gap by the theoretical rate. If the ratio converges to a finite constant, the game achieves the "typical" $\Theta(T^{-1/2})$ rate.
+
+**Wang (2025)** constructed a 9×9 skew-symmetric game where, with a specific non-standard initialisation $U_0$, Fictitious Play converges at rate $\Theta(T^{-1/3})$ — proving the classical bound is not tight in general. This construction is built into the simulator as the **Wang (2025)** mode.
+
+### Key References
+
+- Brown, G. W. (1951). *Iterative solution of games by Fictitious Play*. Activity Analysis of Production and Allocation.
+- Robinson, J. (1951). *An iterative method of solving a game*. Annals of Mathematics, 54(2), 296–301.
+- Wang, Z. (2025). *On the convergence rate of fictitious play*. arXiv preprint.
+
+---
+
+## Legacy Python Versions
+
+> The original Python desktop application and CLI tools are preserved in `legacy/` for reference. The current version of this project is the TypeScript web application above — these legacy tools are not required.
+
+### Requirements
+
+- Python 3.8+
+- NumPy, Numba, Matplotlib, PyQt5, PyQtGraph, PyOpenGL
+
+### Install
 
 ```bash
-# Run CLI mode with default parameters
-docker-compose run cli
-
-# Run development shell
-docker-compose --profile dev run dev
+pip install -r requirements.txt
 ```
 
-### Running with Docker
+### Run
 
 ```bash
-# Basic CLI simulation
-docker run --rm convergence-cli python cli_app.py --terminal --mode random --iter 10000
+# GUI application (V2)
+cd legacy/V2
+python gui_app.py
 
-# Mixed game sizes
-docker run --rm convergence-cli python cli_app.py --terminal --mode mixed --sizes 3,5,7 --iter 20000
+# CLI with terminal output
+cd legacy/V2
+python cli_app.py --terminal --mode random --iter 10000 --batch 5
 
-# Export results to host machine
-docker run --rm -v "${PWD}/output:/app/output" convergence-cli \
-    python cli_app.py --terminal --export output/results.csv
+# Export results
+python cli_app.py --terminal --export results.csv --save-plots
 ```
 
 ### CLI Parameters
 
-| Parameter | Description | Default | Example |
-|-----------|-------------|---------|---------|
-| `--terminal` | Run in headless terminal mode | - | `--terminal` |
-| `--mode` | Game generation mode: `random`, `mixed`, `custom` | `random` | `--mode mixed` |
-| `--iter` | Total number of iterations | `10000` | `--iter 50000` |
-| `--batch` | Number of games to simulate | `5` | `--batch 10` |
-| `--sizes` | Game matrix sizes (for mixed mode) | `3,5,7,10` | `--sizes 3,5,7` |
-| `--chunk` | Iterations per update chunk | `100` | `--chunk 200` |
-| `--seed` | Random seed for reproducibility | Random | `--seed 12345` |
-| `--export` | Export results to file (CSV/MD) | - | `--export results.csv` |
-| `--save-plots` | Save plots to files | - | `--save-plots` |
-
-### Docker Compose Services
-
-| Service | Description | Usage |
-|---------|-------------|-------|
-| `cli` | Headless CLI simulation | `docker-compose run cli` |
-| `gui` | GUI mode (requires X11) | `docker-compose --profile gui up gui` |
-| `dev` | Development shell | `docker-compose --profile dev run dev` |
-
-### Environment Variables
-
-```bash
-# Set display for GUI (Linux only)
-export DISPLAY=:0
-
-# Windows with VcXsrv
-$env:DISPLAY="host.docker.internal:0"
-```
-
-### Volume Mounts
-
-The default configuration mounts `./output` to `/app/output` in the container for persisting exported results:
-
-```bash
-# Results are saved to ./output on host
-docker run --rm -v "${PWD}/output:/app/output" convergence-cli \
-    python cli_app.py --terminal --export output/results.csv
-```
-
-### GUI on Windows
-
-Running GUI applications from Docker on Windows requires an X server:
-
-1. Install [VcXsrv](https://sourceforge.net/projects/vcxsrv/)
-2. Launch XLaunch with "Disable access control" checked
-3. Run:
-```powershell
-docker run --rm -e DISPLAY=host.docker.internal:0 convergence-cli python gui_app.py
-```
-
-> **Note:** For Windows users, running the GUI natively (`python gui_app.py`) is recommended for the best experience.
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `--terminal` | Run in headless terminal mode | — |
+| `--mode` | Game mode: `random`, `mixed`, `custom` | `random` |
+| `--iter` | Total iterations | `10000` |
+| `--batch` | Number of games | `5` |
+| `--sizes` | Matrix sizes (mixed mode) | `3,5,7,10` |
+| `--chunk` | Iterations per update | `100` |
+| `--seed` | Random seed | Random |
+| `--export` | Export to CSV or Markdown | — |
+| `--save-plots` | Save plots to files | — |
 
 ---
+
+## Licence
+
+[MIT](LICENSE)
