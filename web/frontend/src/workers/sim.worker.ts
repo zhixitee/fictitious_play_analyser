@@ -122,6 +122,15 @@ function makeMatrices(cfg: SimConfig): { matrices: Matrix[]; seed: number } {
   return { matrices, seed };
 }
 
+/** In-place keep-every-other-element for adaptive downsampling in unlimited mode. */
+function thinArray<T>(arr: T[]): void {
+  let write = 0;
+  for (let read = 0; read < arr.length; read += 2) {
+    arr[write++] = arr[read];
+  }
+  arr.length = write;
+}
+
 function runSimulation(cfg: SimConfig) {
   running = true;
   const startTime = performance.now();
@@ -144,6 +153,13 @@ function runSimulation(cfg: SimConfig) {
     
     const totalIter = cfg.iterations;
     const chunkSize = cfg.chunk;
+
+    // ── Downsampling: cap stored history to ~50k points to avoid OOM ──────
+    const MAX_HISTORY_POINTS = 50_000;
+    const isUnlimited = totalIter >= Number.MAX_SAFE_INTEGER;
+    let sampleInterval = isUnlimited
+      ? 1
+      : Math.max(1, Math.ceil(totalIter / MAX_HISTORY_POINTS));
 
     const allIters: number[] = [];
     const allGaps: number[][] = matrices.map(() => []);
@@ -174,10 +190,15 @@ function runSimulation(cfg: SimConfig) {
 
     while (running && current < totalIter) {
       const step = Math.min(chunkSize, totalIter - current);
+      const isLastChunk = current + step >= totalIter;
+
+      // Temp storage for this chunk's gaps (for avg computation without full history)
+      const chunkGapResults: Float64Array[] = [];
 
       for (let i = 0; i < solversFixed.length; i++) {
         const chunkResult = stepChunk(solversFixed[i], step);
         const { iters, gaps, finalRowStrategy, finalColStrategy, bestRowHistory: brRow, bestColHistory: brCol } = chunkResult;
+        chunkGapResults.push(gaps);
 
         // Validate invariants for this chunk
         const vResult = validateChunkResult(solversFixed[i], chunkResult);
@@ -192,21 +213,30 @@ function runSimulation(cfg: SimConfig) {
         // Only push iteration numbers once (same for all games)
         if (i === 0) {
           for (let k = 0; k < iters.length; k++) {
-            allIters.push(iters[k]);
-            dIters.push(iters[k]);
+            const globalIdx = current + k;
+            if (globalIdx % sampleInterval === 0 || (isLastChunk && k === step - 1)) {
+              allIters.push(iters[k]);
+              dIters.push(iters[k]);
+            }
           }
         }
         
         for (let k = 0; k < gaps.length; k++) {
-          allGaps[i].push(gaps[k]);
-          dGaps[i].push(gaps[k]);
+          const globalIdx = current + k;
+          if (globalIdx % sampleInterval === 0 || (isLastChunk && k === step - 1)) {
+            allGaps[i].push(gaps[k]);
+            dGaps[i].push(gaps[k]);
+          }
         }
         
         for (let k = 0; k < brRow.length; k++) {
-          bestRowHistory[i].push(brRow[k]);
-          bestColHistory[i].push(brCol[k]);
-          dBestRow[i].push(brRow[k]);
-          dBestCol[i].push(brCol[k]);
+          const globalIdx = current + k;
+          if (globalIdx % sampleInterval === 0 || (isLastChunk && k === step - 1)) {
+            bestRowHistory[i].push(brRow[k]);
+            bestColHistory[i].push(brCol[k]);
+            dBestRow[i].push(brRow[k]);
+            dBestCol[i].push(brCol[k]);
+          }
         }
         
         // Store final strategy for this chunk (one per chunk, not per iteration)
@@ -218,24 +248,47 @@ function runSimulation(cfg: SimConfig) {
         dColStrat[i].push(colArr);
       }
 
+      // Compute avg gaps only for sampled iterations
       for (let k = 0; k < step; k++) {
-        const iterIdx = current + k;
-        let sum = 0;
-        for (let i = 0; i < allGaps.length; i++) {
-          sum += allGaps[i][iterIdx];
+        const globalIdx = current + k;
+        if (globalIdx % sampleInterval === 0 || (isLastChunk && k === step - 1)) {
+          let sum = 0;
+          for (let g = 0; g < chunkGapResults.length; g++) {
+            sum += chunkGapResults[g][k];
+          }
+          const avg = sum / chunkGapResults.length;
+          avgGaps.push(avg);
+          dAvg.push(avg);
         }
-        const avg = sum / allGaps.length;
-        avgGaps.push(avg);
-        dAvg.push(avg);
       }
 
       current += step;
+
+      // Adaptive thinning for unlimited mode: halve stored points when cap exceeded
+      if (isUnlimited && allIters.length > MAX_HISTORY_POINTS) {
+        sampleInterval *= 2;
+        thinArray(allIters);
+        thinArray(avgGaps);
+        for (let gi = 0; gi < matrices.length; gi++) {
+          thinArray(allGaps[gi]);
+          thinArray(bestRowHistory[gi]);
+          thinArray(bestColHistory[gi]);
+          thinArray(rowStrategies[gi]);
+          thinArray(colStrategies[gi]);
+        }
+      }
 
       const now = performance.now();
       if (now - lastUpdateTime >= updateInterval || current >= totalIter) {
         lastUpdateTime = now;
         
-        const avgGap = avgGaps[avgGaps.length - 1] ?? 0;
+        // Current avg gap from latest chunk (for live display, not just sampled)
+        let currentAvgGap = 0;
+        for (let g = 0; g < chunkGapResults.length; g++) {
+          currentAvgGap += chunkGapResults[g][step - 1];
+        }
+        currentAvgGap /= chunkGapResults.length;
+        const avgGap = currentAvgGap;
         
         self.postMessage({
           type: "update",

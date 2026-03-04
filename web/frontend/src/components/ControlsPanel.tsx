@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Play, Square, RotateCcw, Dice5 } from "lucide-react";
 import type { SimMode } from "../workers/sim.worker";
 import type { TieBreakingRule, InitializationMode } from "../types/simulation";
@@ -20,8 +20,13 @@ function estimateMemoryMB(config: {
     ? Math.max(...(config.sizes?.length ? config.sizes : [3]))
     : Math.max(1, config.sizeN || 3);
 
-  const strategiesMemory = batch * Math.ceil(iters / chunk) * matSize * 8 * 2;
-  const gapsMemory = batch * iters * 8;
+  // History is downsampled to MAX_HISTORY_POINTS (50k) when iterations exceed that
+  const MAX_HISTORY_POINTS = 50_000;
+  const storedPoints = Math.min(iters, MAX_HISTORY_POINTS);
+  const numChunks = Math.ceil(iters / chunk);
+
+  const strategiesMemory = batch * numChunks * matSize * 8 * 2;
+  const gapsMemory = batch * storedPoints * 8;
   const overheadFactor = 1.5;
   return (strategiesMemory + gapsMemory) * overheadFactor / (1024 * 1024);
 }
@@ -82,6 +87,23 @@ export function ControlsPanel({
 }: ControlsPanelProps) {
   const [useSeed, setUseSeed] = useState(config.seed !== null);
   const maxIterations = config.localMode ? MAX_ITERATIONS_LOCAL : MAX_ITERATIONS_DEFAULT;
+
+  // Live elapsed time timer
+  const [elapsed, setElapsed] = useState(0);
+  const startTimeRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (status === "running") {
+      startTimeRef.current = Date.now();
+      setElapsed(0);
+      const interval = setInterval(() => {
+        if (startTimeRef.current !== null) {
+          setElapsed(Date.now() - startTimeRef.current);
+        }
+      }, 100);
+      return () => clearInterval(interval);
+    }
+  }, [status === "running"]);
 
   const handleSeedToggle = (checked: boolean) => {
     setUseSeed(checked);
@@ -487,6 +509,16 @@ export function ControlsPanel({
               <div className="text-muted">Avg Gap</div>
               <div className="font-mono text-gray-200">
                 {avgGap > 0 ? avgGap.toExponential(2) : "-"}
+              </div>
+            </div>
+            <div>
+              <div className="text-muted">Elapsed</div>
+              <div className="font-mono text-gray-200">
+                {elapsed < 1000
+                  ? `${(elapsed / 1000).toFixed(1)}s`
+                  : elapsed < 60000
+                  ? `${(elapsed / 1000).toFixed(1)}s`
+                  : `${Math.floor(elapsed / 60000)}m ${((elapsed % 60000) / 1000).toFixed(0)}s`}
               </div>
             </div>
             {isUnlimited && status === "running" && (
