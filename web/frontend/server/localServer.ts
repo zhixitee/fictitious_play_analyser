@@ -12,7 +12,7 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { createSolver, stepChunk, validateChunkResult } from "../src/core/solver";
 import type { ValidationViolation } from "../src/core/solver";
-import { getRandomZeroSumGame, getWang2025 } from "../src/core/games";
+import { getRandomZeroSumGame, getWang2025, getWang2025Augmented } from "../src/core/games";
 import type { Matrix } from "../src/core/games";
 import { mulberry32 } from "../src/core/rng";
 import { computeSimulationSummary } from "../src/core/stats";
@@ -21,7 +21,7 @@ import type { TieBreakingRule, InitializationMode } from "../src/types/simulatio
 // ── Types (mirror sim.worker.ts) ─────────────────────────────────────────────
 
 interface SimConfig {
-  mode: "random" | "mixed" | "custom" | "wang";
+  mode: "random" | "mixed" | "custom" | "wang" | "wang10";
   iterations: number;
   chunk: number;
   batch: number;
@@ -55,6 +55,11 @@ function makeMatrices(cfg: SimConfig): { matrices: Matrix[]; seed: number } {
 
   if (cfg.mode === "wang") {
     matrices.push(getWang2025());
+    return { matrices, seed };
+  }
+
+  if (cfg.mode === "wang10") {
+    matrices.push(getWang2025Augmented());
     return { matrices, seed };
   }
 
@@ -112,6 +117,7 @@ async function runSimulation(ws: WebSocket, cfg: SimConfig): Promise<void> {
       const solver = createSolver(m, {
         tieBreaking: cfg.tieBreaking,
         initialization: cfg.initialization,
+        symmetric: cfg.mode === "wang" || cfg.mode === "wang10",
         rng: initRng,
       });
       solver.config.rng = tieRng;

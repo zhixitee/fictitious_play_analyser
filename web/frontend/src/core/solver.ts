@@ -7,6 +7,8 @@ import { randInt } from "./rng";
 export interface SolverConfig {
   tieBreaking: TieBreakingRule;
   initialization: InitializationMode;
+  /** Enforce x_t = y_t (symmetric FP for skew-symmetric games). */
+  symmetric: boolean;
   rng: RNG;
 }
 
@@ -40,6 +42,7 @@ export interface ChunkResult {
 const defaultConfig: SolverConfig = {
   tieBreaking: "lexicographic",
   initialization: "standard",
+  symmetric: false,
   rng: Math.random,
 };
 
@@ -246,9 +249,9 @@ export function stepChunk(state: SolverState, steps: number): ChunkResult {
     countRow[bestRow] += 1;
     countCol[bestCol] += 1;
 
-    // Wang mode: game is skew-symmetric ⇒ enforce x_t = y_t to prevent
+    // Skew-symmetric game: enforce x_t = y_t to prevent
     // floating-point drift from breaking the symmetric-FP invariant.
-    if (cfg.initialization === "wang") {
+    if (cfg.symmetric) {
       for (let j = 0; j < n; j++) {
         countCol[j] = countRow[j];
       }

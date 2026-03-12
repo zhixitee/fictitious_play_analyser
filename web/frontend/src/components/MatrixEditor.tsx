@@ -127,7 +127,7 @@ export function MatrixEditor({
             <tr>
               <th className="w-10"></th>
               {Array.from({ length: cols }, (_, j) => (
-                <th key={j} className="text-xs text-muted px-1 pb-1 text-center">
+                <th key={j} className="text-sm text-muted px-1 pb-1 text-center">
                   C{j}
                 </th>
               ))}
@@ -136,9 +136,9 @@ export function MatrixEditor({
           <tbody>
             {matrix.map((row, i) => (
               <tr key={i}>
-                <td className="text-xs text-muted pr-2 text-right">R{i}</td>
+                <td className="text-sm text-muted pr-2 text-right">R{i}</td>
                 {row.map((val, j) => (
-                  <td key={j} className="p-0.5">
+                  <td key={j} className="p-1">
                     <input
                       type="number"
                       value={val}
@@ -147,7 +147,7 @@ export function MatrixEditor({
                       }
                       disabled={disabled}
                       step="0.1"
-                      className="w-16 text-center text-sm p-1.5 font-mono"
+                      className="no-spinner w-24 text-center text-base px-3 py-2 font-mono"
                     />
                   </td>
                 ))}

@@ -2,12 +2,12 @@
 
 import { createSolver, stepChunk, validateChunkResult } from "../core/solver";
 import type { ValidationViolation } from "../core/solver";
-import { getRandomZeroSumGame, getWang2025, Matrix } from "../core/games";
+import { getRandomZeroSumGame, getWang2025, getWang2025Augmented, Matrix } from "../core/games";
 import { mulberry32 } from "../core/rng";
 import { computeSimulationSummary, SimulationSummary } from "../core/stats";
 import type { TieBreakingRule, InitializationMode } from "../types/simulation";
 
-export type SimMode = "random" | "mixed" | "custom" | "wang";
+export type SimMode = "random" | "mixed" | "custom" | "wang" | "wang10";
 
 export interface SimConfig {
   mode: SimMode;
@@ -91,16 +91,20 @@ function makeMatrices(cfg: SimConfig): { matrices: Matrix[]; seed: number } {
   const matrices: Matrix[] = [];
 
   if (cfg.mode === "custom") {
-    const matrix = cfg.customMatrix ?? [
+    matrices.push(cfg.customMatrix ?? [
       [0, -1],
       [1, 0],
-    ];
-    matrices.push(matrix);
+    ]);
     return { matrices, seed };
   }
 
   if (cfg.mode === "wang") {
     matrices.push(getWang2025());
+    return { matrices, seed };
+  }
+
+  if (cfg.mode === "wang10") {
+    matrices.push(getWang2025Augmented());
     return { matrices, seed };
   }
 
@@ -142,6 +146,7 @@ function runSimulation(cfg: SimConfig) {
       const solver = createSolver(m, {
         tieBreaking: cfg.tieBreaking,
         initialization: cfg.initialization,
+        symmetric: cfg.mode === "wang" || cfg.mode === "wang10",
         rng: initRng,
       });
       solver.config.rng = tieRng;

@@ -324,7 +324,7 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
     mode: config.mode,
     iterations: config.iterations,
     chunk: config.chunkSize,
-    batch: config.mode === "wang" || config.mode === "custom" ? 1 : (config.batchSize || 1),
+    batch: (config.mode === "wang" || config.mode === "wang10" || config.mode === "custom") ? 1 : (config.batchSize || 1),
     sizes: config.sizes,
     sizeN: config.sizeN,
     seed: config.seed ?? undefined,

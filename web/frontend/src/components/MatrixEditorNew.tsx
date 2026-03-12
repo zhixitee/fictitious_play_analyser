@@ -1,10 +1,17 @@
 import React from "react";
-import { getRPSGame, getDiagonalGame, zeros, Matrix } from "../core/games";
+import { getRPSGame, getDiagonalGame, zeros, skewSymmetrize, Matrix } from "../core/games";
 
 interface MatrixEditorProps {
   matrix: Matrix;
   onChange: (matrix: Matrix) => void;
   disabled?: boolean;
+}
+
+/** Cell background based on position: upper triangle, diagonal, lower triangle */
+function cellBg(i: number, j: number): string {
+  if (i === j) return "bg-gray-600/40";     // diagonal
+  if (j > i)   return "bg-blue-900/25";     // upper triangle
+  return "bg-emerald-900/20";               // lower triangle
 }
 
 export function MatrixEditor({ matrix, onChange, disabled }: MatrixEditorProps) {
@@ -31,6 +38,22 @@ export function MatrixEditor({ matrix, onChange, disabled }: MatrixEditorProps) 
     onChange(newMatrix);
   };
 
+  const applyRandom = () => {
+    const M = zeros(n, n);
+    for (let i = 0; i < n; i++)
+      for (let j = 0; j < n; j++)
+        M[i][j] = Math.round((Math.random() * 2 - 1) * 100) / 100;
+    onChange(skewSymmetrize(M));
+  };
+
+  const applyUpperTriangular = () => {
+    const M = zeros(n, n);
+    for (let i = 0; i < n; i++)
+      for (let j = i + 1; j < n; j++)
+        M[i][j] = 1;
+    onChange(M);
+  };
+
   const applyTemplate = (template: "rps" | "diagonal" | "zeros" | "antisym") => {
     switch (template) {
       case "rps":
@@ -43,13 +66,7 @@ export function MatrixEditor({ matrix, onChange, disabled }: MatrixEditorProps) 
         onChange(zeros(n, n));
         break;
       case "antisym":
-        const skew = zeros(n, n);
-        for (let i = 0; i < n; i++) {
-          for (let j = 0; j < n; j++) {
-            skew[i][j] = (matrix[i][j] - (matrix[j]?.[i] ?? 0)) / 2;
-          }
-        }
-        onChange(skew);
+        onChange(skewSymmetrize(matrix));
         break;
     }
   };
@@ -75,21 +92,36 @@ export function MatrixEditor({ matrix, onChange, disabled }: MatrixEditorProps) 
       </div>
 
       <div className="bg-gray-800 rounded p-2 overflow-x-auto">
-        <table className="text-xs">
+        <table className="text-sm">
+          <thead>
+            <tr>
+              <th className="w-6"></th>
+              {Array.from({ length: m }, (_, j) => (
+                <th key={j} className="text-[10px] text-muted pb-0.5 text-center font-normal">C{j}</th>
+              ))}
+            </tr>
+          </thead>
           <tbody>
             {matrix.map((row, i) => (
               <tr key={i}>
+                <td className="text-[10px] text-muted pr-1 text-right">R{i}</td>
                 {row.map((val, j) => (
                   <td key={j} className="p-0.5">
                     <input
-                      type="number"
-                      value={val.toFixed(2)}
-                      onChange={(e) =>
-                        handleCellChange(i, j, parseFloat(e.target.value) || 0)
-                      }
+                      type="text"
+                      inputMode="decimal"
+                      value={val % 1 === 0 ? val.toString() : val.toFixed(2)}
+                      onChange={(e) => {
+                        const parsed = parseFloat(e.target.value);
+                        if (!isNaN(parsed)) handleCellChange(i, j, parsed);
+                        else if (e.target.value === "" || e.target.value === "-") return;
+                      }}
+                      onBlur={(e) => {
+                        const parsed = parseFloat(e.target.value);
+                        handleCellChange(i, j, isNaN(parsed) ? 0 : parsed);
+                      }}
                       disabled={disabled}
-                      className="w-14 text-center text-xs py-1"
-                      step="0.1"
+                      className={`w-16 text-center text-sm py-1.5 px-2 font-mono rounded ${cellBg(i, j)}`}
                     />
                   </td>
                 ))}
@@ -97,9 +129,21 @@ export function MatrixEditor({ matrix, onChange, disabled }: MatrixEditorProps) 
             ))}
           </tbody>
         </table>
+        <div className="flex gap-3 mt-1.5 text-[10px] text-muted">
+          <span><span className="inline-block w-2.5 h-2.5 rounded-sm bg-blue-900/50 align-middle mr-1"></span>Upper</span>
+          <span><span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-600/60 align-middle mr-1"></span>Diagonal</span>
+          <span><span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-900/40 align-middle mr-1"></span>Lower</span>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
+        <button
+          onClick={applyRandom}
+          disabled={disabled}
+          className="text-xs bg-indigo-700 px-2 py-1 rounded hover:bg-indigo-600 transition-colors"
+        >
+          Random
+        </button>
         <button
           onClick={() => applyTemplate("zeros")}
           disabled={disabled}
@@ -120,6 +164,13 @@ export function MatrixEditor({ matrix, onChange, disabled }: MatrixEditorProps) 
           className="text-xs bg-gray-700 px-2 py-1 rounded hover:bg-gray-600 transition-colors"
         >
           Diagonal
+        </button>
+        <button
+          onClick={applyUpperTriangular}
+          disabled={disabled}
+          className="text-xs bg-gray-700 px-2 py-1 rounded hover:bg-gray-600 transition-colors"
+        >
+          Upper Triangular
         </button>
         <button
           onClick={() => applyTemplate("antisym")}

@@ -162,10 +162,13 @@ export function ControlsPanel({
           onChange={(e) => {
             const newMode = e.target.value as SimMode;
             const updates: Partial<ControlsConfig> = { mode: newMode };
-            // Auto-select wang initialization and lexicographic tie-breaking for Wang 2025 game
+            // Auto-select initialization and tie-breaking for Wang modes
             if (newMode === "wang") {
               updates.initialization = "wang";
               updates.tieBreaking = "lexicographic";
+            } else if (newMode === "wang10") {
+              // Construction 2: standard init, any tie-breaking (agnostic)
+              updates.initialization = "standard";
             } else if (config.initialization === "wang") {
               // Revert to standard when leaving wang mode
               updates.initialization = "standard";
@@ -178,7 +181,8 @@ export function ControlsPanel({
           <option value="random">Random Games</option>
           <option value="mixed">Mixed Sizes</option>
           <option value="custom">Custom Matrix</option>
-          <option value="wang">Wang 2025</option>
+          <option value="wang">Wang C1 (9×9)</option>
+          <option value="wang10">Wang C2 (10×10)</option>
         </select>
       </div>
 
@@ -241,13 +245,13 @@ export function ControlsPanel({
               }
             }
           }}
-          disabled={isRunning || config.mode === "wang" || config.mode === "custom"}
+          disabled={isRunning || config.mode === "wang" || config.mode === "wang10" || config.mode === "custom"}
           min={0}
           max={MAX_BATCH_SIZE}
           placeholder="Enter batch size"
           className="w-full"
         />
-        {(config.mode === "wang" || config.mode === "custom") && (
+        {(config.mode === "wang" || config.mode === "wang10" || config.mode === "custom") && (
           <p className="text-xs text-muted">Fixed to 1 for this mode</p>
         )}
       </div>
@@ -414,7 +418,7 @@ export function ControlsPanel({
           <select
             value={config.tieBreaking}
             onChange={(e) => onConfigChange({ tieBreaking: e.target.value as TieBreakingRule })}
-            disabled={isRunning}
+            disabled={isRunning || config.mode === "wang"}
             className="w-full"
           >
             <option value="lexicographic">Lexicographic (lowest index)</option>
@@ -428,18 +432,25 @@ export function ControlsPanel({
           <select
             value={config.initialization}
             onChange={(e) => onConfigChange({ initialization: e.target.value as InitializationMode })}
-            disabled={isRunning}
+            disabled={isRunning || config.mode === "wang" || config.mode === "wang10"}
             className="w-full"
           >
             <option value="standard">Standard [1, 0, ..., 0]</option>
             <option value="random">Random Beliefs</option>
             <option value="wang">Wang 2025 (9×9, prescribed U₀)</option>
           </select>
-          {config.initialization === "wang" && (
+          {config.mode === "wang" && (
             <p className="text-xs text-muted">
-              9×9 Construction 1: non-standard initial utility U₀ with
+              C1 (9×9): non-standard initial utility U₀ with
               symmetric FP (x=y). Requires lexicographic tie-breaking.
-              Proof: gap = Θ(t<sup>−1/3</sup>), disproving Karlin O(t<sup>−1/2</sup>).
+              gap = Θ(t<sup>−1/3</sup>), disproving Karlin's O(t<sup>−1/2</sup>).
+            </p>
+          )}
+          {config.mode === "wang10" && (
+            <p className="text-xs text-muted">
+              C2 (10×10): augmented skew-symmetric game. Standard init,
+              any tie-breaking rule (agnostic). Symmetric FP (x=y).
+              gap = Θ(t<sup>−1/3</sup>).
             </p>
           )}
         </div>

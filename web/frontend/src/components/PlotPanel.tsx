@@ -303,6 +303,40 @@ export function PlotPanel({
     [ratioDataFull, zoom.domain],
   );
 
+  // Wang (2025) ratio: gap × t^{1/3}.
+  // If gap = Θ(t^{−1/3}) (the tie-breaking agnostic lower bound from
+  // Wang's Construction 1), this ratio stabilises to a positive constant.
+  const wangRatioDataFull = useMemo(() => {
+    if (iterations.length === 0) return [];
+
+    const data: ChartDataPoint[] = [];
+
+    for (let idx = 0; idx < iterations.length; idx++) {
+      const iter = iterations[idx];
+      if (iter <= 0) continue;
+
+      const wangBound = 1 / Math.pow(iter, 1 / 3);
+      const point: ChartDataPoint = { iteration: iter, iterationIndex: idx };
+
+      for (let g = 0; g < gameCount; g++) {
+        const gap = allGaps[g]?.[idx] ?? 0;
+        point[`game${g + 1}`] = gap / wangBound;
+      }
+
+      const avg = avgGaps[idx] ?? 0;
+      point.average = avg / wangBound;
+
+      data.push(point);
+    }
+
+    return data;
+  }, [iterations, allGaps, avgGaps, gameCount]);
+
+  const wangRatioData = useMemo(
+    () => downsampleData(wangRatioDataFull, zoom.domain, 500),
+    [wangRatioDataFull, zoom.domain],
+  );
+
   const gapTooltipIndex = useMemo(
     () => findClosestDataIndex(chartData, selectedIterationValue),
     [chartData, selectedIterationValue, findClosestDataIndex],
@@ -315,6 +349,12 @@ export function PlotPanel({
     () => findClosestDataIndex(ratioData, selectedIterationValue),
     [ratioData, selectedIterationValue, findClosestDataIndex],
   );
+  const wangRatioTooltipIndex = useMemo(
+    () => findClosestDataIndex(wangRatioData, selectedIterationValue),
+    [wangRatioData, selectedIterationValue, findClosestDataIndex],
+  );
+
+  const [showWangRatio, setShowWangRatio] = useState(false);
 
   const toggleGameVisibility = (gameIndex: number) => {
     const newVisible = [...effectiveVisibleGames];
@@ -765,6 +805,105 @@ export function PlotPanel({
           </ZoomableChart>
         </div>
       </motion.div>
+
+      {/* ── Gap / Wang Bound Ratio (toggleable) ────────────────────────── */}
+      <motion.div variants={chartVariants} className="flex-shrink-0">
+        <button
+          onClick={() => setShowWangRatio(v => !v)}
+          className={`text-xs px-3 py-1 rounded font-mono transition-colors ${
+            showWangRatio
+              ? 'bg-red-500/20 text-red-400 border border-red-500/40'
+              : 'bg-gray-700/50 text-gray-400 border border-gray-600/40 hover:bg-gray-600/50'
+          }`}
+        >
+          {showWangRatio ? 'Hide' : 'Show'} Gap / Wang Bound Ratio
+        </button>
+      </motion.div>
+
+      {showWangRatio && (
+        <motion.div variants={chartVariants} className="flex-[1.5] min-h-0">
+          <ZoomableChart
+            isZoomed={zoom.isZoomed}
+            onResetZoom={zoomActions.resetZoom}
+            height="100%"
+            title="Gap / Wang Bound Ratio  (gap × T^{1/3})"
+            fullDomain={fullDomain}
+            zoomActions={zoomActions}
+            chartMarginLeft={15}
+            chartMarginRight={15}
+          >
+            {wangRatioData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={wangRatioData}
+                  margin={{ top: 5, right: 15, left: 15, bottom: 5 }}
+                  {...chartMouseProps}
+                >
+                  <CartesianGrid {...gridProps} />
+                  <XAxis {...sharedXAxisProps} fontSize={9} />
+                  <YAxis
+                    stroke="#505050"
+                    tickFormatter={(v: number) => v.toFixed(1)}
+                    fontSize={9}
+                    tick={axisTickStyle}
+                    label={{ value: 'Ratio', angle: -90, position: 'insideLeft', style: { fill: '#505050', fontSize: 9, fontFamily: "'JetBrains Mono', monospace" } }}
+                  />
+                  <Tooltip
+                    {...commonTooltipStyle}
+                    formatter={formatRatioTooltip}
+                    labelFormatter={(label) => `Iter: ${Number(label).toLocaleString()}`}
+                    defaultIndex={wangRatioTooltipIndex}
+                  />
+
+                  {brushStart != null && brushEnd != null && (
+                    <ReferenceArea x1={brushStart} x2={brushEnd} strokeOpacity={0.3} fill="#4ade80" fillOpacity={0.1} />
+                  )}
+
+                  {selectedIterationValue > 0 && (
+                    <ReferenceLine x={selectedIterationValue} stroke="#ffffff" strokeWidth={1} strokeDasharray="4 4" strokeOpacity={0.6} />
+                  )}
+
+                  <ReferenceLine
+                    y={1}
+                    stroke="#ef4444"
+                    strokeDasharray="8 4"
+                    strokeWidth={1}
+                    label={{ value: '1.0', position: 'right', fill: '#ef4444', fontSize: 9 }}
+                  />
+
+                  {showIndividual &&
+                    Array.from({ length: gameCount }, (_, i) => {
+                      if (!effectiveVisibleGames[i]) return null;
+                      if (selectedGame !== null && selectedGame !== i) return null;
+                      return (
+                        <Line
+                          key={`game${i + 1}`}
+                          type="monotone"
+                          dataKey={`game${i + 1}`}
+                          stroke={GAME_COLORS[i % GAME_COLORS.length]}
+                          strokeWidth={1}
+                          dot={false}
+                          opacity={0.7}
+                          isAnimationActive={lineAnimActive}
+                          animationDuration={900}
+                          animationEasing="ease-out"
+                        />
+                      );
+                    })}
+
+                  {showAverage && (
+                    <Line type="monotone" dataKey="average" stroke="#fbbf24" strokeWidth={2} dot={false} isAnimationActive={lineAnimActive} animationDuration={900} animationEasing="ease-out" />
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-xs text-muted font-mono">
+                Need more data...
+              </div>
+            )}
+          </ZoomableChart>
+        </motion.div>
+      )}
 
       {bestRowHistory && bestColHistory && bestRowHistory.length > 0 && (() => {
         // Determine which game to show (selected game or first game)
