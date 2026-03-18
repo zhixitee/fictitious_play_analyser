@@ -13,22 +13,31 @@ function estimateMemoryMB(config: {
   mode: string;
   sizes: number[];
 }): number {
-  const batch = Math.max(1, config.batchSize || 1);
+  const batch = config.mode === "wang" || config.mode === "wang_plus" || config.mode === "wang10" || config.mode === "custom"
+    ? 1
+    : Math.max(1, config.batchSize || 1);
   const iters = Math.max(1, config.iterations || 1000);
   const chunk = Math.max(1, config.chunkSize || 100);
-  const matSize = config.mode === "mixed"
-    ? Math.max(...(config.sizes?.length ? config.sizes : [3]))
-    : Math.max(1, config.sizeN || 3);
+  const matSize = config.mode === "wang" ? 9
+    : config.mode === "wang_plus" ? 9
+    : config.mode === "wang10" ? 10
+    : config.mode === "mixed"
+      ? Math.max(...(config.sizes?.length ? config.sizes : [3]))
+      : Math.max(1, config.sizeN || 3);
 
-  // History is downsampled to MAX_HISTORY_POINTS (50k) when iterations exceed that
+  // History is downsampled to MAX_HISTORY_POINTS (50k); adaptive thinning keeps it bounded
   const MAX_HISTORY_POINTS = 50_000;
   const storedPoints = Math.min(iters, MAX_HISTORY_POINTS);
   const numChunks = Math.ceil(iters / chunk);
+  const storedChunks = Math.min(numChunks, MAX_HISTORY_POINTS);
 
-  const strategiesMemory = batch * numChunks * matSize * 8 * 2;
-  const gapsMemory = batch * storedPoints * 8;
-  const overheadFactor = 1.5;
-  return (strategiesMemory + gapsMemory) * overheadFactor / (1024 * 1024);
+  // Per game: gaps + bestRow + bestCol (float64 each, per stored point)
+  //         + rowStrategy + colStrategy (float64 × matSize each, per stored chunk)
+  const perGame = storedPoints * 8 * 3 + storedChunks * matSize * 8 * 2;
+  // Shared: iterations array + avgGaps (float64 each, per stored point)
+  const shared = storedPoints * 8 * 2;
+  const overheadFactor = 1.5; // JS object/array overhead, delta buffers
+  return (batch * perGame + shared) * overheadFactor / (1024 * 1024);
 }
 
 export interface ControlsConfig {
@@ -166,10 +175,13 @@ export function ControlsPanel({
             if (newMode === "wang") {
               updates.initialization = "wang";
               updates.tieBreaking = "lexicographic";
+            } else if (newMode === "wang_plus") {
+              updates.initialization = "wang_plus";
+              updates.tieBreaking = "lexicographic";
             } else if (newMode === "wang10") {
-              // Construction 2: standard init, any tie-breaking (agnostic)
-              updates.initialization = "standard";
-            } else if (config.initialization === "wang") {
+              // Construction 2: paper convention x0 = y0 = 0
+              updates.initialization = "zero";
+            } else if (config.initialization === "wang" || config.initialization === "wang_plus") {
               // Revert to standard when leaving wang mode
               updates.initialization = "standard";
             }
@@ -181,8 +193,9 @@ export function ControlsPanel({
           <option value="random">Random Games</option>
           <option value="mixed">Mixed Sizes</option>
           <option value="custom">Custom Matrix</option>
-          <option value="wang">Wang C1 (9×9)</option>
-          <option value="wang10">Wang C2 (10×10)</option>
+          <option value="wang">Wang C1 (9×9, U₀[8] = −12)</option>
+          <option value="wang_plus">Wang C2 (9×9, U₀[8] = +12)</option>
+          <option value="wang10">Wang C3 (10×10 augmented)</option>
         </select>
       </div>
 
@@ -245,13 +258,13 @@ export function ControlsPanel({
               }
             }
           }}
-          disabled={isRunning || config.mode === "wang" || config.mode === "wang10" || config.mode === "custom"}
+          disabled={isRunning || config.mode === "wang" || config.mode === "wang_plus" || config.mode === "wang10" || config.mode === "custom"}
           min={0}
           max={MAX_BATCH_SIZE}
           placeholder="Enter batch size"
           className="w-full"
         />
-        {(config.mode === "wang" || config.mode === "wang10" || config.mode === "custom") && (
+        {(config.mode === "wang" || config.mode === "wang_plus" || config.mode === "wang10" || config.mode === "custom") && (
           <p className="text-xs text-muted">Fixed to 1 for this mode</p>
         )}
       </div>
@@ -418,7 +431,7 @@ export function ControlsPanel({
           <select
             value={config.tieBreaking}
             onChange={(e) => onConfigChange({ tieBreaking: e.target.value as TieBreakingRule })}
-            disabled={isRunning || config.mode === "wang"}
+            disabled={isRunning || config.mode === "wang" || config.mode === "wang_plus"}
             className="w-full"
           >
             <option value="lexicographic">Lexicographic (lowest index)</option>
@@ -432,25 +445,34 @@ export function ControlsPanel({
           <select
             value={config.initialization}
             onChange={(e) => onConfigChange({ initialization: e.target.value as InitializationMode })}
-            disabled={isRunning || config.mode === "wang" || config.mode === "wang10"}
+            disabled={isRunning || config.mode === "wang" || config.mode === "wang_plus" || config.mode === "wang10"}
             className="w-full"
           >
             <option value="standard">Standard [1, 0, ..., 0]</option>
             <option value="random">Random Beliefs</option>
+            <option value="zero">Zero Counts [0, ..., 0]</option>
             <option value="wang">Wang 2025 (9×9, prescribed U₀)</option>
+            <option value="wang_plus">Wang 2025 (9×9, prescribed U₀ with U₀[8]=+12)</option>
           </select>
           {config.mode === "wang" && (
             <p className="text-xs text-muted">
-              C1 (9×9): non-standard initial utility U₀ with
+              C1 (9×9): non-standard initial utility U₀ with U₀[8] = −12,
+              symmetric FP (x=y). Requires lexicographic tie-breaking.
+              gap = Θ(t<sup>−1/3</sup>), disproving Karlin's O(t<sup>−1/2</sup>).
+            </p>
+          )}
+          {config.mode === "wang_plus" && (
+            <p className="text-xs text-muted">
+              C2 (9×9): comparison variant with U₀[8] = +12,
               symmetric FP (x=y). Requires lexicographic tie-breaking.
               gap = Θ(t<sup>−1/3</sup>), disproving Karlin's O(t<sup>−1/2</sup>).
             </p>
           )}
           {config.mode === "wang10" && (
             <p className="text-xs text-muted">
-              C2 (10×10): augmented skew-symmetric game. Standard init,
+              C3 (10×10): augmented skew-symmetric game. Zero-count init (x₀=y₀=0),
               any tie-breaking rule (agnostic). Symmetric FP (x=y).
-              gap = Θ(t<sup>−1/3</sup>).
+              Only the first step is tied in the paper construction.
             </p>
           )}
         </div>

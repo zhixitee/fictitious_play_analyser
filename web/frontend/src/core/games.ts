@@ -111,7 +111,7 @@ function buildWang9x9(): Matrix {
  * In the FP dynamics, utility evolves as: U_{t+1} = U_t + A·e_{i_{t+1}}
  * starting from this U₀ (not from the zero vector).
  */
-export const WANG_INITIAL_UTILITY: Float64Array = Float64Array.from([
+export const WANG_INITIAL_UTILITY_C1: Float64Array = Float64Array.from([
   460 / 27,         //  V₁·1 [0]  ≈  17.037
   136 / 27,         //  V₁·1 [1]  ≈   5.037
   460 / 27,         //  V₁·1 [2]  ≈  17.037
@@ -121,6 +121,19 @@ export const WANG_INITIAL_UTILITY: Float64Array = Float64Array.from([
   -5,               //  V₃·1 [0]  = −5
   17,               //  V₃·1 [1]  =  17
   -12,              //  V₃·1 [2]  = −12
+]);
+
+// Comparison variant for U₀[8] sign-sensitivity experiments.
+export const WANG_INITIAL_UTILITY_C2: Float64Array = Float64Array.from([
+  460 / 27,         //  V₁·1 [0]  ≈  17.037
+  136 / 27,         //  V₁·1 [1]  ≈   5.037
+  460 / 27,         //  V₁·1 [2]  ≈  17.037
+  -169687 / 2700,   //  V₂·1 [0]  ≈ −62.847
+  -67513 / 2700,    //  V₂·1 [1]  ≈ −25.005
+  -1357 / 27,       //  V₂·1 [2]  ≈ −50.259
+  -5,               //  V₃·1 [0]  = −5
+  17,               //  V₃·1 [1]  =  17
+  12,               //  V₃·1 [2]  = +12
 ]);
 
 /**
@@ -141,8 +154,16 @@ export function getWang2025(): Matrix {
  * Wang (2025) 10×10 augmented game — Construction 2.
  *
  * Adds a dummy anchor action (row/col 0) to the 9×9 game so that
- * standard initialization (and any tie-breaking rule) reproduces the
- * same Θ(t^{−1/3}) trajectory without needing a prescribed U₀.
+ * tie-breaking-agnostic dynamics reproduce the same Θ(t^{−1/3}) trajectory
+ * without needing a prescribed U₀.
+ *
+ * Parameterization matches Appendix A (M_aug) with:
+ *  - delta = 1/2700
+ *  - base shift = 169687/2700
+ *  - blockwise offsets [2δ, δ, 0] repeated across the 3 blocks
+ *
+ * Dynamics are intended to run from x0 = y0 = 0, where the only expected tie
+ * is the first step (as stated in the paper's tie-agnostic construction).
  */
 export function getWang2025Augmented(): Matrix {
   const M9 = buildWang9x9();

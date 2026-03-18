@@ -1,5 +1,5 @@
 import type { Matrix } from "./games";
-import { WANG_INITIAL_UTILITY } from "./games";
+import { WANG_INITIAL_UTILITY_C1, WANG_INITIAL_UTILITY_C2 } from "./games";
 import type { TieBreakingRule, InitializationMode } from "../types/simulation";
 import type { RNG } from "./rng";
 import { randInt } from "./rng";
@@ -37,6 +37,10 @@ export interface ChunkResult {
   finalColStrategy: Float64Array;
   bestRowHistory: Int32Array;
   bestColHistory: Int32Array;
+  rowTieCount: number;
+  colTieCount: number;
+  maxRowTieSize: number;
+  maxColTieSize: number;
 }
 
 const defaultConfig: SolverConfig = {
@@ -72,7 +76,11 @@ export function createSolver(matrix: Matrix, config?: Partial<SolverConfig>): So
         countCol[j] *= scale;
       }
     }
-  } else if (cfg.initialization === "wang") {
+  } else if (cfg.initialization === "zero") {
+    // Zero-count initialization: x0 = y0 = 0 (paper convention).
+    // First FP update is selected from a full tie at t=0.
+    // Counts remain zero here and are incremented during the first step.
+  } else if (cfg.initialization === "wang" || cfg.initialization === "wang_plus") {
     // Wang (2025) — 9×9 Construction 1 with non-standard initialization.
     //
     // The paper prescribes an initial utility U₀ that is NOT derivable from
@@ -85,9 +93,13 @@ export function createSolver(matrix: Matrix, config?: Partial<SolverConfig>): So
     //
     // The game is skew-symmetric (M = −Mᵀ), so FP is symmetric: x_t = y_t.
     // We enforce this invariant after each step.
+    const sourceUtility = cfg.initialization === "wang_plus"
+      ? WANG_INITIAL_UTILITY_C2
+      : WANG_INITIAL_UTILITY_C1;
+
     initialUtility = new Float64Array(n);
-    for (let i = 0; i < Math.min(n, WANG_INITIAL_UTILITY.length); i++) {
-      initialUtility[i] = WANG_INITIAL_UTILITY[i];
+    for (let i = 0; i < Math.min(n, sourceUtility.length); i++) {
+      initialUtility[i] = sourceUtility[i];
     }
     // Counts start at zero — no actions played yet. t = 0.
   } else {
@@ -98,7 +110,8 @@ export function createSolver(matrix: Matrix, config?: Partial<SolverConfig>): So
 
   const t = cfg.initialization === "random"
     ? countRow.reduce((a, b) => a + b, 0)
-    : cfg.initialization === "wang" ? 0 : 1;
+    : cfg.initialization === "zero" ? 0
+    : (cfg.initialization === "wang" || cfg.initialization === "wang_plus") ? 0 : 1;
 
   return { matrix, n, m, countRow, countCol, t, config: cfg, initialUtility };
 }
@@ -128,7 +141,7 @@ function selectBestResponse(
   rule: TieBreakingRule,
   rng: RNG,
   tiedBuffer: Int32Array,
-): number {
+): { index: number; tiedCount: number } {
   let bestVal = direction === "max" ? -Infinity : Infinity;
   let bestIdx = 0;
   let tiedCount = 0;
@@ -150,17 +163,19 @@ function selectBestResponse(
     }
   }
 
-  if (tiedCount <= 1) return bestIdx;
+  if (tiedCount <= 1) {
+    return { index: bestIdx, tiedCount };
+  }
 
   switch (rule) {
     case "lexicographic":
-      return tiedBuffer[0];
+      return { index: tiedBuffer[0], tiedCount };
     case "anti-lexicographic":
-      return tiedBuffer[tiedCount - 1];
+      return { index: tiedBuffer[tiedCount - 1], tiedCount };
     case "random":
-      return tiedBuffer[Math.floor(rng() * tiedCount)];
+      return { index: tiedBuffer[Math.floor(rng() * tiedCount)], tiedCount };
     default:
-      return bestIdx;
+      return { index: bestIdx, tiedCount };
   }
 }
 
@@ -186,6 +201,11 @@ export function stepChunk(state: SolverState, steps: number): ChunkResult {
   // Pre-allocate tie buffers (max size = max(n, m))
   const tiedBuffer = new Int32Array(Math.max(n, m));
 
+  let rowTieCount = 0;
+  let colTieCount = 0;
+  let maxRowTieSize = 1;
+  let maxColTieSize = 1;
+
   for (let k = 0; k < steps; k++) {
     const t = state.t + k;
     iters[k] = t;
@@ -193,17 +213,45 @@ export function stepChunk(state: SolverState, steps: number): ChunkResult {
     let bestRow: number;
     let bestCol: number;
 
-    if (t === 0 && initialUtility) {
-      // Wang mode, first step (t=0): x₀ = 0, no strategy formed yet.
-      // Use prescribed U₀ directly for best-response selection.
-      // For the row player: argmax(U₀).
-      // For the column player in skew-symmetric game: argmin(-U₀) = argmax(U₀).
-      bestRow = selectBestResponse(initialUtility, n, "max", cfg.tieBreaking, cfg.rng, tiedBuffer);
-      // Negate U₀ for column player’s perspective
-      for (let j = 0; j < m; j++) {
-        colPayoffs[j] = -initialUtility[j];
+    if (t === 0) {
+      if (initialUtility) {
+        // Wang mode, first step (t=0): x₀ = 0, no strategy formed yet.
+        // Use prescribed U₀ directly for best-response selection.
+        // For the row player: argmax(U₀).
+        // For the column player in skew-symmetric game: argmin(-U₀) = argmax(U₀).
+        const rowBr = selectBestResponse(initialUtility, n, "max", cfg.tieBreaking, cfg.rng, tiedBuffer);
+        bestRow = rowBr.index;
+        if (rowBr.tiedCount > 1) {
+          rowTieCount++;
+          if (rowBr.tiedCount > maxRowTieSize) maxRowTieSize = rowBr.tiedCount;
+        }
+        // Negate U₀ for column player’s perspective
+        for (let j = 0; j < m; j++) {
+          colPayoffs[j] = -initialUtility[j];
+        }
+        const colBr = selectBestResponse(colPayoffs, m, "min", cfg.tieBreaking, cfg.rng, tiedBuffer);
+        bestCol = colBr.index;
+        if (colBr.tiedCount > 1) {
+          colTieCount++;
+          if (colBr.tiedCount > maxColTieSize) maxColTieSize = colBr.tiedCount;
+        }
+      } else {
+        // Zero initialization without utility bias: all payoffs are tied at 0.
+        rowPayoffs.fill(0);
+        colPayoffs.fill(0);
+        const rowBr = selectBestResponse(rowPayoffs, n, "max", cfg.tieBreaking, cfg.rng, tiedBuffer);
+        bestRow = rowBr.index;
+        if (rowBr.tiedCount > 1) {
+          rowTieCount++;
+          if (rowBr.tiedCount > maxRowTieSize) maxRowTieSize = rowBr.tiedCount;
+        }
+        const colBr = selectBestResponse(colPayoffs, m, "min", cfg.tieBreaking, cfg.rng, tiedBuffer);
+        bestCol = colBr.index;
+        if (colBr.tiedCount > 1) {
+          colTieCount++;
+          if (colBr.tiedCount > maxColTieSize) maxColTieSize = colBr.tiedCount;
+        }
       }
-      bestCol = selectBestResponse(colPayoffs, m, "min", cfg.tieBreaking, cfg.rng, tiedBuffer);
       // Gap is 0 at t=0: no strategy pair exists yet
       gaps[k] = 0;
     } else {
@@ -235,11 +283,33 @@ export function stepChunk(state: SolverState, steps: number): ChunkResult {
         for (let j = 0; j < m; j++) {
           biasedColPayoffs[j] = colPayoffs[j] - initialUtility[j] * invT;
         }
-        bestRow = selectBestResponse(biasedRowPayoffs, n, "max", cfg.tieBreaking, cfg.rng, tiedBuffer);
-        bestCol = selectBestResponse(biasedColPayoffs, m, "min", cfg.tieBreaking, cfg.rng, tiedBuffer);
+        const rowBr = selectBestResponse(biasedRowPayoffs, n, "max", cfg.tieBreaking, cfg.rng, tiedBuffer);
+        bestRow = rowBr.index;
+        if (rowBr.tiedCount > 1) {
+          rowTieCount++;
+          if (rowBr.tiedCount > maxRowTieSize) maxRowTieSize = rowBr.tiedCount;
+        }
+
+        const colBr = selectBestResponse(biasedColPayoffs, m, "min", cfg.tieBreaking, cfg.rng, tiedBuffer);
+        bestCol = colBr.index;
+        if (colBr.tiedCount > 1) {
+          colTieCount++;
+          if (colBr.tiedCount > maxColTieSize) maxColTieSize = colBr.tiedCount;
+        }
       } else {
-        bestRow = selectBestResponse(rowPayoffs, n, "max", cfg.tieBreaking, cfg.rng, tiedBuffer);
-        bestCol = selectBestResponse(colPayoffs, m, "min", cfg.tieBreaking, cfg.rng, tiedBuffer);
+        const rowBr = selectBestResponse(rowPayoffs, n, "max", cfg.tieBreaking, cfg.rng, tiedBuffer);
+        bestRow = rowBr.index;
+        if (rowBr.tiedCount > 1) {
+          rowTieCount++;
+          if (rowBr.tiedCount > maxRowTieSize) maxRowTieSize = rowBr.tiedCount;
+        }
+
+        const colBr = selectBestResponse(colPayoffs, m, "min", cfg.tieBreaking, cfg.rng, tiedBuffer);
+        bestCol = colBr.index;
+        if (colBr.tiedCount > 1) {
+          colTieCount++;
+          if (colBr.tiedCount > maxColTieSize) maxColTieSize = colBr.tiedCount;
+        }
       }
 
       // duality gap = max row payoff - min col payoff (unbiased, on actual strategies)
@@ -269,7 +339,18 @@ export function stepChunk(state: SolverState, steps: number): ChunkResult {
     finalColStrategy[j] = countCol[j] / state.t;
   }
 
-  return { iters, gaps, finalRowStrategy, finalColStrategy, bestRowHistory, bestColHistory };
+  return {
+    iters,
+    gaps,
+    finalRowStrategy,
+    finalColStrategy,
+    bestRowHistory,
+    bestColHistory,
+    rowTieCount,
+    colTieCount,
+    maxRowTieSize,
+    maxColTieSize,
+  };
 }
 
 export function getCurrentStrategies(state: SolverState): {
@@ -395,7 +476,7 @@ export function validateChunkResult(
     // We use 10× the matrix Frobenius norm as the constant multiplier
     // Skip for Wang mode: the whole point is gap = Θ(t^{−1/3}) > O(t^{−1/2})
     checks++;
-    if (t >= 10 && state.config.initialization !== "wang") {
+    if (t >= 10 && state.config.initialization !== "wang" && state.config.initialization !== "wang_plus") {
       let frobSq = 0;
       for (let i = 0; i < n; i++) {
         for (let j = 0; j < m; j++) {

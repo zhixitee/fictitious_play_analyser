@@ -21,7 +21,7 @@ import type { TieBreakingRule, InitializationMode } from "../src/types/simulatio
 // ── Types (mirror sim.worker.ts) ─────────────────────────────────────────────
 
 interface SimConfig {
-  mode: "random" | "mixed" | "custom" | "wang" | "wang10";
+  mode: "random" | "mixed" | "custom" | "wang" | "wang_plus" | "wang10";
   iterations: number;
   chunk: number;
   batch: number;
@@ -54,6 +54,11 @@ function makeMatrices(cfg: SimConfig): { matrices: Matrix[]; seed: number } {
   }
 
   if (cfg.mode === "wang") {
+    matrices.push(getWang2025());
+    return { matrices, seed };
+  }
+
+  if (cfg.mode === "wang_plus") {
     matrices.push(getWang2025());
     return { matrices, seed };
   }
@@ -117,7 +122,7 @@ async function runSimulation(ws: WebSocket, cfg: SimConfig): Promise<void> {
       const solver = createSolver(m, {
         tieBreaking: cfg.tieBreaking,
         initialization: cfg.initialization,
-        symmetric: cfg.mode === "wang" || cfg.mode === "wang10",
+        symmetric: cfg.mode === "wang" || cfg.mode === "wang_plus" || cfg.mode === "wang10",
         rng: initRng,
       });
       solver.config.rng = tieRng;
@@ -179,6 +184,25 @@ async function runSimulation(ws: WebSocket, cfg: SimConfig): Promise<void> {
           const tagged = { ...v, detail: `[Game ${i + 1}] ${v.detail}` };
           allViolations.push(tagged);
           dViolations.push(tagged);
+        }
+
+        const expectedFirstStepTie = cfg.mode === "wang10" && current === 0 ? 1 : 0;
+        const effRowTies = Math.max(0, chunkResult.rowTieCount - expectedFirstStepTie);
+        const effColTies = Math.max(0, chunkResult.colTieCount - expectedFirstStepTie);
+
+        if ((cfg.mode === "wang" || cfg.mode === "wang_plus" || cfg.mode === "wang10") &&
+            (effRowTies > 0 || effColTies > 0)) {
+          const tieViolation: ValidationViolation = {
+            iteration: current + step,
+            check: "tie_detected",
+            detail:
+              `[Game ${i + 1}] ties detected in chunk: ` +
+              `row=${effRowTies} (max tie size=${chunkResult.maxRowTieSize}), ` +
+              `col=${effColTies} (max tie size=${chunkResult.maxColTieSize})` +
+              (cfg.mode === "wang10" && current === 0 ? " [excluding expected first-step tie]" : ""),
+          };
+          allViolations.push(tieViolation);
+          dViolations.push(tieViolation);
         }
 
         if (i === 0) {
