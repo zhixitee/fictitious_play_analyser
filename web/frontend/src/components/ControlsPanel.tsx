@@ -94,7 +94,7 @@ export function ControlsPanel({
   gameCount,
   serverStatus,
 }: ControlsPanelProps) {
-  const [useSeed, setUseSeed] = useState(config.seed !== null);
+  const [manualSeed, setManualSeed] = useState<number>(config.seed ?? Math.floor(Math.random() * 100000));
   const maxIterations = config.localMode ? MAX_ITERATIONS_LOCAL : MAX_ITERATIONS_DEFAULT;
 
   // Live elapsed time timer
@@ -114,17 +114,23 @@ export function ControlsPanel({
     }
   }, [status === "running" || status === "finalizing"]);
 
-  const handleSeedToggle = (checked: boolean) => {
-    setUseSeed(checked);
-    onConfigChange({ seed: checked ? Math.floor(Math.random() * 100000) : null });
+  const handleRandomSeedToggle = (checked: boolean) => {
+    if (checked) {
+      onConfigChange({ seed: null });
+    } else {
+      onConfigChange({ seed: manualSeed });
+    }
   };
 
   const handleSeedChange = (value: number) => {
+    setManualSeed(value);
     onConfigChange({ seed: value });
   };
 
   const handleRandomizeSeed = () => {
-    onConfigChange({ seed: Math.floor(Math.random() * 100000) });
+    const next = Math.floor(Math.random() * 100000);
+    setManualSeed(next);
+    onConfigChange({ seed: next });
   };
 
   const toggleSize = (size: number) => {
@@ -326,19 +332,19 @@ export function ControlsPanel({
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
-              checked={useSeed}
-              onChange={(e) => handleSeedToggle(e.target.checked)}
+              checked={config.seed === null}
+              onChange={(e) => handleRandomSeedToggle(e.target.checked)}
               disabled={isRunning}
               className="accent-gray-500"
             />
-            <span className="text-xs text-muted">Use seed</span>
+            <span className="text-xs text-muted">Auto random</span>
           </label>
         </div>
-        {useSeed && (
+        {config.seed !== null && (
           <div className="flex gap-2">
             <input
               type="number"
-              value={config.seed ?? 0}
+              value={config.seed}
               onChange={(e) => handleSeedChange(parseInt(e.target.value) || 0)}
               disabled={isRunning}
               min={0}
@@ -354,8 +360,8 @@ export function ControlsPanel({
             </button>
           </div>
         )}
-        {!useSeed && (
-          <p className="text-xs text-muted">Random seed each run</p>
+        {config.seed === null && (
+          <p className="text-xs text-muted">Random seed each run (toggle off to enter one manually)</p>
         )}
       </div>
 

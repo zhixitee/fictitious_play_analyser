@@ -45,6 +45,7 @@ interface PlotPanelProps {
   visibleGames?: boolean[];
   onVisibleGamesChange?: (visibleGames: boolean[]) => void;
   selectedIterationIndex?: number;
+  pinSelectionOverlay?: boolean;
   bestRowHistory?: number[][];  // [game][iterIdx]
   bestColHistory?: number[][];  // [game][iterIdx]
   matrices?: number[][][];      // [game][row][col] for matrix size
@@ -66,6 +67,7 @@ export function PlotPanel({
   visibleGames,
   onVisibleGamesChange,
   selectedIterationIndex = 0,
+  pinSelectionOverlay = false,
   bestRowHistory,
   bestColHistory,
   matrices,
@@ -86,6 +88,34 @@ export function PlotPanel({
   const handleVisibleChange = onVisibleGamesChange || setInternalVisibleGames;
 
   const selectedIterationValue = iterations[selectedIterationIndex] || 0;
+  const [displayIterationValue, setDisplayIterationValue] = useState(selectedIterationValue);
+
+  useEffect(() => {
+    if (!pinSelectionOverlay) {
+      setDisplayIterationValue(selectedIterationValue);
+      return;
+    }
+
+    if (selectedIterationValue <= 0) {
+      setDisplayIterationValue(0);
+      return;
+    }
+
+    let raf = 0;
+    const animate = () => {
+      setDisplayIterationValue((prev) => {
+        const delta = selectedIterationValue - prev;
+        if (Math.abs(delta) <= 0.5) {
+          return selectedIterationValue;
+        }
+        raf = requestAnimationFrame(animate);
+        return prev + delta * 0.32;
+      });
+    };
+
+    raf = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(raf);
+  }, [selectedIterationValue, pinSelectionOverlay]);
 
   /** Binary search for the closest data index matching an iteration value. */
   const findClosestDataIndex = useCallback((data: ChartDataPoint[], iterValue: number): number | undefined => {
@@ -131,16 +161,21 @@ export function PlotPanel({
     }
   }, [iterations.length]);
 
-  const lineAnimActive = isInitialRender && !initialAnimDone;
+  // Path interpolation can cause a subtle end-of-load snap on dense series.
+  // Keep entry animation at the panel level (fade stagger) for smoother loading.
+  const lineAnimActive = false;
 
   const chartVariants = {
-    hidden: { opacity: 0, y: 18 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" as const } },
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: { duration: 0.85, ease: [0.22, 1, 0.36, 1] as const },
+    },
   };
 
   const staggerContainer = {
     hidden: {},
-    visible: { transition: { staggerChildren: 0.12 } },
+    visible: { transition: { delayChildren: 0.08, staggerChildren: 0.35 } },
   };
 
   const [brushStart, setBrushStart] = useState<string | number | null>(null);
@@ -219,6 +254,11 @@ export function PlotPanel({
     () => downsampleData(chartDataFull, zoom.domain, 1000),
     [chartDataFull, zoom.domain],
   );
+
+  const shouldAnimatePrimary = lineAnimActive && chartData.length <= 400;
+  const shouldAnimateSecondary = lineAnimActive && gameCount <= 8;
+  const primaryAnimDuration = shouldAnimatePrimary ? 560 : 0;
+  const secondaryAnimDuration = shouldAnimateSecondary ? 460 : 0;
 
   const convergenceRateDataFull = useMemo(() => {
     if (iterations.length < 20) return [];
@@ -338,20 +378,20 @@ export function PlotPanel({
   );
 
   const gapTooltipIndex = useMemo(
-    () => findClosestDataIndex(chartData, selectedIterationValue),
-    [chartData, selectedIterationValue, findClosestDataIndex],
+    () => findClosestDataIndex(chartData, displayIterationValue),
+    [chartData, displayIterationValue, findClosestDataIndex],
   );
   const alphaTooltipIndex = useMemo(
-    () => findClosestDataIndex(convergenceRateData, selectedIterationValue),
-    [convergenceRateData, selectedIterationValue, findClosestDataIndex],
+    () => findClosestDataIndex(convergenceRateData, displayIterationValue),
+    [convergenceRateData, displayIterationValue, findClosestDataIndex],
   );
   const ratioTooltipIndex = useMemo(
-    () => findClosestDataIndex(ratioData, selectedIterationValue),
-    [ratioData, selectedIterationValue, findClosestDataIndex],
+    () => findClosestDataIndex(ratioData, displayIterationValue),
+    [ratioData, displayIterationValue, findClosestDataIndex],
   );
   const wangRatioTooltipIndex = useMemo(
-    () => findClosestDataIndex(wangRatioData, selectedIterationValue),
-    [wangRatioData, selectedIterationValue, findClosestDataIndex],
+    () => findClosestDataIndex(wangRatioData, displayIterationValue),
+    [wangRatioData, displayIterationValue, findClosestDataIndex],
   );
 
   const [showWangRatio, setShowWangRatio] = useState(false);
@@ -510,7 +550,7 @@ export function PlotPanel({
         </motion.div>
       )}
 
-      <motion.div variants={chartVariants} className="flex-[3] min-h-0">
+      <motion.div variants={chartVariants} className="flex-[3] min-h-[280px]">
       <ZoomableChart
         isZoomed={zoom.isZoomed}
         onResetZoom={zoomActions.resetZoom}
@@ -541,7 +581,7 @@ export function PlotPanel({
               {...commonTooltipStyle}
               formatter={formatTooltip}
               labelFormatter={(label) => `Iteration ${Number(label).toLocaleString()}`}
-              defaultIndex={gapTooltipIndex}
+              defaultIndex={pinSelectionOverlay ? gapTooltipIndex : undefined}
             />
             {showLegend && <Legend wrapperStyle={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} />}
 
@@ -555,9 +595,9 @@ export function PlotPanel({
               />
             )}
 
-            {selectedIterationValue > 0 && (
+            {pinSelectionOverlay && displayIterationValue > 0 && (
               <ReferenceLine
-                x={selectedIterationValue}
+                x={displayIterationValue}
                 stroke="#ffffff"
                 strokeWidth={1.5}
                 strokeDasharray="4 4"
@@ -578,9 +618,9 @@ export function PlotPanel({
                     strokeWidth={selectedGame === i ? 2.5 : 1.5}
                     dot={false}
                     name={`Game ${i + 1}`}
-                    isAnimationActive={lineAnimActive}
-                    animationDuration={900}
-                    animationEasing="ease-out"
+                    isAnimationActive={shouldAnimatePrimary}
+                    animationDuration={primaryAnimDuration}
+                    animationEasing="linear"
                   />
                 );
               })}
@@ -593,9 +633,9 @@ export function PlotPanel({
                 strokeWidth={2.5}
                 dot={false}
                 name="Average Gap"
-                isAnimationActive={lineAnimActive}
-                animationDuration={900}
-                animationEasing="ease-out"
+                isAnimationActive={shouldAnimatePrimary}
+                animationDuration={primaryAnimDuration}
+                animationEasing="linear"
               />
             )}
 
@@ -609,9 +649,9 @@ export function PlotPanel({
               dot={false}
               name="Karlin O(T^-1/2)"
               opacity={0.8}
-              isAnimationActive={lineAnimActive}
-              animationDuration={900}
-              animationEasing="ease-out"
+              isAnimationActive={shouldAnimatePrimary}
+              animationDuration={primaryAnimDuration}
+              animationEasing="linear"
             />
 
             <Line
@@ -623,16 +663,16 @@ export function PlotPanel({
               dot={false}
               name="Wang O(T^-1/3)"
               opacity={0.8}
-              isAnimationActive={lineAnimActive}
-              animationDuration={900}
-              animationEasing="ease-out"
+              isAnimationActive={shouldAnimatePrimary}
+              animationDuration={primaryAnimDuration}
+              animationEasing="linear"
             />
           </LineChart>
         </ResponsiveContainer>
       </ZoomableChart>
       </motion.div>
 
-      <motion.div variants={chartVariants} className="flex gap-4 justify-center flex-[1.5] min-h-0">
+      <motion.div variants={chartVariants} className="flex gap-4 justify-center flex-[1.5] min-h-[190px]">
         <div className="flex-1 min-w-0 max-w-[50%] min-h-0">
           <ZoomableChart
             isZoomed={zoom.isZoomed}
@@ -663,15 +703,15 @@ export function PlotPanel({
                   />
                   <Tooltip
                     content={<AlphaTooltipContent />}
-                    defaultIndex={alphaTooltipIndex}
+                    defaultIndex={pinSelectionOverlay ? alphaTooltipIndex : undefined}
                   />
 
                   {brushStart != null && brushEnd != null && (
                     <ReferenceArea x1={brushStart} x2={brushEnd} strokeOpacity={0.3} fill="#4ade80" fillOpacity={0.1} />
                   )}
 
-                  {selectedIterationValue > 0 && (
-                    <ReferenceLine x={selectedIterationValue} stroke="#ffffff" strokeWidth={1} strokeDasharray="4 4" strokeOpacity={0.6} />
+                  {pinSelectionOverlay && displayIterationValue > 0 && (
+                    <ReferenceLine x={displayIterationValue} stroke="#ffffff" strokeWidth={1} strokeDasharray="4 4" strokeOpacity={0.6} />
                   )}
 
                   <ReferenceLine
@@ -702,15 +742,15 @@ export function PlotPanel({
                           strokeWidth={1}
                           dot={false}
                           opacity={0.7}
-                          isAnimationActive={lineAnimActive}
-                          animationDuration={900}
-                          animationEasing="ease-out"
+                          isAnimationActive={shouldAnimateSecondary}
+                          animationDuration={secondaryAnimDuration}
+                          animationEasing="linear"
                         />
                       );
                     })}
 
                   {showAverage && (
-                    <Line type="monotone" dataKey="average" stroke="#fbbf24" strokeWidth={2} dot={false} isAnimationActive={lineAnimActive} animationDuration={900} animationEasing="ease-out" />
+                    <Line type="monotone" dataKey="average" stroke="#fbbf24" strokeWidth={2} dot={false} isAnimationActive={shouldAnimateSecondary} animationDuration={secondaryAnimDuration} animationEasing="linear" />
                   )}
                 </LineChart>
               </ResponsiveContainer>
@@ -753,15 +793,15 @@ export function PlotPanel({
                     {...commonTooltipStyle}
                     formatter={formatRatioTooltip}
                     labelFormatter={(label) => `Iter: ${Number(label).toLocaleString()}`}
-                    defaultIndex={ratioTooltipIndex}
+                    defaultIndex={pinSelectionOverlay ? ratioTooltipIndex : undefined}
                   />
 
                   {brushStart != null && brushEnd != null && (
                     <ReferenceArea x1={brushStart} x2={brushEnd} strokeOpacity={0.3} fill="#4ade80" fillOpacity={0.1} />
                   )}
 
-                  {selectedIterationValue > 0 && (
-                    <ReferenceLine x={selectedIterationValue} stroke="#ffffff" strokeWidth={1} strokeDasharray="4 4" strokeOpacity={0.6} />
+                  {pinSelectionOverlay && displayIterationValue > 0 && (
+                    <ReferenceLine x={displayIterationValue} stroke="#ffffff" strokeWidth={1} strokeDasharray="4 4" strokeOpacity={0.6} />
                   )}
 
                   <ReferenceLine
@@ -785,15 +825,15 @@ export function PlotPanel({
                           strokeWidth={1}
                           dot={false}
                           opacity={0.7}
-                          isAnimationActive={lineAnimActive}
-                          animationDuration={900}
-                          animationEasing="ease-out"
+                          isAnimationActive={shouldAnimateSecondary}
+                          animationDuration={secondaryAnimDuration}
+                          animationEasing="linear"
                         />
                       );
                     })}
 
                   {showAverage && (
-                    <Line type="monotone" dataKey="average" stroke="#fbbf24" strokeWidth={2} dot={false} isAnimationActive={lineAnimActive} animationDuration={900} animationEasing="ease-out" />
+                    <Line type="monotone" dataKey="average" stroke="#fbbf24" strokeWidth={2} dot={false} isAnimationActive={shouldAnimateSecondary} animationDuration={secondaryAnimDuration} animationEasing="linear" />
                   )}
                 </LineChart>
               </ResponsiveContainer>
@@ -821,7 +861,7 @@ export function PlotPanel({
       </motion.div>
 
       {showWangRatio && (
-        <motion.div variants={chartVariants} className="flex-[1.5] min-h-0">
+        <motion.div variants={chartVariants} className="flex-[1.5] min-h-[190px]">
           <ZoomableChart
             isZoomed={zoom.isZoomed}
             onResetZoom={zoomActions.resetZoom}
@@ -852,15 +892,15 @@ export function PlotPanel({
                     {...commonTooltipStyle}
                     formatter={formatRatioTooltip}
                     labelFormatter={(label) => `Iter: ${Number(label).toLocaleString()}`}
-                    defaultIndex={wangRatioTooltipIndex}
+                    defaultIndex={pinSelectionOverlay ? wangRatioTooltipIndex : undefined}
                   />
 
                   {brushStart != null && brushEnd != null && (
                     <ReferenceArea x1={brushStart} x2={brushEnd} strokeOpacity={0.3} fill="#4ade80" fillOpacity={0.1} />
                   )}
 
-                  {selectedIterationValue > 0 && (
-                    <ReferenceLine x={selectedIterationValue} stroke="#ffffff" strokeWidth={1} strokeDasharray="4 4" strokeOpacity={0.6} />
+                  {pinSelectionOverlay && displayIterationValue > 0 && (
+                    <ReferenceLine x={displayIterationValue} stroke="#ffffff" strokeWidth={1} strokeDasharray="4 4" strokeOpacity={0.6} />
                   )}
 
                   <ReferenceLine
@@ -884,15 +924,15 @@ export function PlotPanel({
                           strokeWidth={1}
                           dot={false}
                           opacity={0.7}
-                          isAnimationActive={lineAnimActive}
-                          animationDuration={900}
-                          animationEasing="ease-out"
+                          isAnimationActive={shouldAnimateSecondary}
+                          animationDuration={secondaryAnimDuration}
+                          animationEasing="linear"
                         />
                       );
                     })}
 
                   {showAverage && (
-                    <Line type="monotone" dataKey="average" stroke="#fbbf24" strokeWidth={2} dot={false} isAnimationActive={lineAnimActive} animationDuration={900} animationEasing="ease-out" />
+                    <Line type="monotone" dataKey="average" stroke="#fbbf24" strokeWidth={2} dot={false} isAnimationActive={shouldAnimateSecondary} animationDuration={secondaryAnimDuration} animationEasing="linear" />
                   )}
                 </LineChart>
               </ResponsiveContainer>
@@ -916,13 +956,14 @@ export function PlotPanel({
           : gameCount === 1 ? "Game 1" : `Game 1 (of ${gameCount})`;
         if (!brRow || !brCol) return null;
         return (
-          <motion.div variants={chartVariants} className="flex-[1.5] min-h-0">
+          <motion.div variants={chartVariants} className="flex-[1.5] min-h-[190px]">
           <BestResponseChart
             iterations={iterations}
             bestRowHistory={brRow}
             bestColHistory={brCol}
             matrixSize={matSize}
             selectedIterationIndex={selectedIterationIndex}
+            pinSelectionOverlay={pinSelectionOverlay}
             logScale={logScale}
             gameLabel={label}
             domain={zoom.domain}

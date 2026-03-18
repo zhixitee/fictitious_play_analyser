@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import {
   ScatterChart,
   Scatter,
@@ -25,6 +25,7 @@ interface BestResponseChartProps {
   bestColHistory: number[];  // best response index per iteration for one game
   matrixSize: number;        // N (number of actions)
   selectedIterationIndex?: number;
+  pinSelectionOverlay?: boolean;
   logScale?: boolean;
   gameLabel?: string;
   domain?: Domain;
@@ -47,6 +48,7 @@ export function BestResponseChart({
   bestColHistory,
   matrixSize,
   selectedIterationIndex = 0,
+  pinSelectionOverlay = false,
   logScale = false,
   gameLabel,
   domain = null,
@@ -108,6 +110,35 @@ export function BestResponseChart({
     const idx = Math.min(selectedIterationIndex, iterations.length - 1);
     return iterations[idx] || 0;
   }, [iterations, selectedIterationIndex]);
+
+  const [displayIterationValue, setDisplayIterationValue] = useState(selectedIterationValue);
+
+  useEffect(() => {
+    if (!pinSelectionOverlay) {
+      setDisplayIterationValue(selectedIterationValue);
+      return;
+    }
+
+    if (selectedIterationValue <= 0) {
+      setDisplayIterationValue(0);
+      return;
+    }
+
+    let raf = 0;
+    const animate = () => {
+      setDisplayIterationValue((prev) => {
+        const delta = selectedIterationValue - prev;
+        if (Math.abs(delta) <= 0.5) {
+          return selectedIterationValue;
+        }
+        raf = requestAnimationFrame(animate);
+        return prev + delta * 0.32;
+      });
+    };
+
+    raf = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(raf);
+  }, [selectedIterationValue, pinSelectionOverlay]);
 
   const fullMax = iterations.length > 0 ? iterations[iterations.length - 1] : 1;
   const xDomain: [number | string, number | string] = domain
@@ -215,8 +246,8 @@ export function BestResponseChart({
             <ReferenceArea x1={brushStart} x2={brushEnd} strokeOpacity={0.3} fill="#22c55e" fillOpacity={0.1} />
           )}
 
-          {selectedIterationValue > 0 && (
-            <ReferenceLine x={selectedIterationValue} stroke="#ffffff" strokeWidth={1} strokeDasharray="4 4" strokeOpacity={0.6} />
+          {pinSelectionOverlay && displayIterationValue > 0 && (
+            <ReferenceLine x={displayIterationValue} stroke="#ffffff" strokeWidth={1} strokeDasharray="4 4" strokeOpacity={0.6} />
           )}
 
           <Scatter

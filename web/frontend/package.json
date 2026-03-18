@@ -9,6 +9,9 @@
     "preview": "vite preview",
     "server": "node --max-old-space-size=4096 --import tsx ./server/localServer.ts",
     "server:8g": "node --max-old-space-size=8192 --import tsx ./server/localServer.ts",
+    "server:12g": "node --max-old-space-size=12288 --import tsx ./server/localServer.ts",
+    "server:16g": "node --max-old-space-size=16384 --import tsx ./server/localServer.ts",
+    "server:32g": "node --max-old-space-size=32768 --import tsx ./server/localServer.ts",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {

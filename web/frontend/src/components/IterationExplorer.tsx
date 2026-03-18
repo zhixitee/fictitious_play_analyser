@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect } from "react";
+import React, { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { Download, FileText, Copy, ChevronDown, ChevronRight } from "lucide-react";
 import type { SimulationState } from "../hooks/useWorkerSimulation";
 import type { SimulationSummary } from "../core/stats";
@@ -17,6 +17,8 @@ interface IterationExplorerProps {
   state: SimulationState;
   selectedIterationIndex: number;
   onIterationChange: (index: number) => void;
+  onIterationDragStart?: () => void;
+  onIterationDragEnd?: () => void;
   explorerGameIndex: number; // -1 = Average
   onGameChange: (index: number) => void;
   isCompleted: boolean;
@@ -167,6 +169,8 @@ export function IterationExplorer({
   state,
   selectedIterationIndex,
   onIterationChange,
+  onIterationDragStart,
+  onIterationDragEnd,
   explorerGameIndex,
   onGameChange,
   isCompleted,
@@ -174,6 +178,64 @@ export function IterationExplorer({
   const hasData = state.iterations.length > 0;
   const gameCount = state.allGaps.length;
   const maxIndex = state.iterations.length - 1;
+  const [sliderValue, setSliderValue] = useState(selectedIterationIndex);
+  const rafPendingValueRef = useRef<number | null>(null);
+  const rafIdRef = useRef<number | null>(null);
+  const isDraggingRef = useRef(false);
+
+  // Keep local slider state in sync when selection changes externally.
+  useEffect(() => {
+    if (isDraggingRef.current) return;
+    setSliderValue(selectedIterationIndex);
+  }, [selectedIterationIndex]);
+
+  useEffect(() => {
+    return () => {
+      if (rafIdRef.current != null) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
+    };
+  }, []);
+
+  const flushSliderUpdate = useCallback(() => {
+    const pending = rafPendingValueRef.current;
+    if (pending != null) {
+      onIterationChange(pending);
+      rafPendingValueRef.current = null;
+    }
+    rafIdRef.current = null;
+  }, [onIterationChange]);
+
+  const handleSliderInput = useCallback((rawValue: string) => {
+    const next = Number.parseInt(rawValue, 10);
+    if (Number.isNaN(next)) return;
+
+    setSliderValue(next);
+    rafPendingValueRef.current = next;
+
+    if (rafIdRef.current == null) {
+      rafIdRef.current = requestAnimationFrame(flushSliderUpdate);
+    }
+  }, [flushSliderUpdate]);
+
+  const handleSliderDragStart = useCallback(() => {
+    isDraggingRef.current = true;
+    onIterationDragStart?.();
+  }, [onIterationDragStart]);
+
+  const handleSliderDragEnd = useCallback(() => {
+    isDraggingRef.current = false;
+
+    if (rafIdRef.current != null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+
+    const finalValue = rafPendingValueRef.current ?? sliderValue;
+    rafPendingValueRef.current = null;
+    onIterationChange(finalValue);
+    onIterationDragEnd?.();
+  }, [onIterationChange, sliderValue, onIterationDragEnd]);
   
   const currentIteration = hasData 
     ? state.iterations[Math.min(selectedIterationIndex, maxIndex)] || 0 
@@ -290,8 +352,14 @@ export function IterationExplorer({
         </div>
         <input
           type="range"
-          value={selectedIterationIndex}
-          onChange={(e) => onIterationChange(parseInt(e.target.value))}
+          value={sliderValue}
+          onChange={(e) => handleSliderInput(e.target.value)}
+          onMouseDown={handleSliderDragStart}
+          onTouchStart={handleSliderDragStart}
+          onMouseUp={handleSliderDragEnd}
+          onTouchEnd={handleSliderDragEnd}
+          onPointerUp={handleSliderDragEnd}
+          onBlur={handleSliderDragEnd}
           min={0}
           max={Math.max(0, maxIndex)}
           step={1}

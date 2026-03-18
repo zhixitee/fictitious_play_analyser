@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback } from "react";
 import { Github, Info, GripVertical } from "lucide-react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { useWorkerSimulation } from "./hooks/useWorkerSimulation";
@@ -18,7 +18,7 @@ const defaultConfig: ControlsConfig = {
   batchSize: 3,
   iterations: 10000,
   chunkSize: 100,
-  seed: Math.floor(Math.random() * 100000),
+  seed: null,
   sizeN: 3,
   sizes: [3, 5, 7],
   customMatrix: getRPSGame(),
@@ -37,6 +37,7 @@ function App() {
   const [visibleGames, setVisibleGames] = useState<boolean[]>([]);
   const [selectedIterationIndex, setSelectedIterationIndex] = useState<number>(0);
   const [explorerGameIndex, setExplorerGameIndex] = useState<number>(-1); // -1 = All Games, -2 = Average
+  const [isIterationScrubbing, setIsIterationScrubbing] = useState(false);
 
   const {
     state,
@@ -79,13 +80,12 @@ function App() {
     }
   }, [state.iterations.length]);
 
-  const selectedIteration = useMemo(() => {
-    if (state.iterations.length === 0) return 0;
-    return state.iterations[Math.min(selectedIterationIndex, state.iterations.length - 1)] || 0;
-  }, [state.iterations, selectedIterationIndex]);
-
   const handleConfigChange = useCallback((updates: Partial<ControlsConfig>) => {
     setConfig((prev) => ({ ...prev, ...updates }));
+  }, []);
+
+  const handleIterationChange = useCallback((index: number) => {
+    setSelectedIterationIndex(index);
   }, []);
 
   const handleStart = useCallback(() => {
@@ -101,13 +101,7 @@ function App() {
     if (config.batchSize === '') {
       setConfig((prev) => ({ ...prev, batchSize: 1 }));
     }
-    if (effectiveConfig.seed !== null) {
-      const newSeed = Math.floor(Math.random() * 100000);
-      setConfig((prev) => ({ ...prev, ...effectiveConfig, seed: newSeed }));
-      start({ ...effectiveConfig, seed: newSeed });
-    } else {
-      start(effectiveConfig);
-    }
+    start(effectiveConfig);
   }, [start, config]);
 
   return (
@@ -230,6 +224,7 @@ function App() {
                       visibleGames={visibleGames}
                       onVisibleGamesChange={handleVisibleGamesChange}
                       selectedIterationIndex={selectedIterationIndex}
+                      pinSelectionOverlay={isIterationScrubbing}
                       bestRowHistory={state.bestRowHistory}
                       bestColHistory={state.bestColHistory}
                       matrices={state.matrices}
@@ -248,7 +243,9 @@ function App() {
                 <IterationExplorer
                   state={state}
                   selectedIterationIndex={selectedIterationIndex}
-                  onIterationChange={setSelectedIterationIndex}
+                  onIterationChange={handleIterationChange}
+                  onIterationDragStart={() => setIsIterationScrubbing(true)}
+                  onIterationDragEnd={() => setIsIterationScrubbing(false)}
                   explorerGameIndex={explorerGameIndex}
                   onGameChange={setExplorerGameIndex}
                   isCompleted={isCompleted}

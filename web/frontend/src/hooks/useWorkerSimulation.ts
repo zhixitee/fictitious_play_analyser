@@ -336,9 +336,14 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
   // ── WebSocket (local server) start path ──────────────────────────────────
   const startViaServer = useCallback(
     (config: ControlsConfig) => {
-      // Clean up previous connections
-      if (wsRef.current) {
-        wsRef.current.close();
+      const existingWs = wsRef.current;
+
+      // Reuse an open server connection across runs to avoid disconnect churn.
+      const canReuseConnection = existingWs && existingWs.readyState === WebSocket.OPEN;
+
+      // Clean up stale/non-open connections
+      if (existingWs && !canReuseConnection) {
+        existingWs.close();
         wsRef.current = null;
       }
       if (workerRef.current) {
@@ -346,13 +351,13 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
         workerRef.current = null;
       }
 
-      // Bump connection ID so stale callbacks from the old WS are ignored
+      // Always bump ID on start so each run owns a fresh handler set.
       const thisId = ++wsIdRef.current;
 
       dataRef.current = createEmptyDataRef();
       lastSyncedVersion.current = 0;
       runningRef.current = true;
-      setServerStatus("connecting");
+      setServerStatus(canReuseConnection ? "connected" : "connecting");
 
       setState({
         ...initialState,
@@ -365,10 +370,75 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
         ? "unlimited"
         : simConfig.iterations.toLocaleString();
 
+      const attachHandlers = (ws: WebSocket) => {
+        ws.onmessage = (event) => {
+          if (wsIdRef.current !== thisId) return; // stale
+          try {
+            const msg: WorkerOutMessage = JSON.parse(event.data as string);
+            handleMessage(msg);
+          } catch {
+            // ignore non-JSON
+          }
+        };
+
+        ws.onerror = () => {
+          if (wsIdRef.current !== thisId) return; // stale
+          setServerStatus("error");
+          runningRef.current = false;
+          setState((prev) => ({
+            ...prev,
+            status: "error",
+            error: "Could not connect to local server. Run: npm run server",
+          }));
+          addLog("Failed to connect to local server. Make sure it's running: npm run server");
+        };
+
+        ws.onclose = () => {
+          if (wsIdRef.current !== thisId) return; // stale — old connection closing
+          setServerStatus("disconnected");
+          // If simulation was still running, the server closed unexpectedly.
+          if (runningRef.current) {
+            runningRef.current = false;
+            setState((prev) => {
+              if (prev.status === "running" || prev.status === "finalizing") {
+                return {
+                  ...prev,
+                  status: "error",
+                  error: "Server connection closed unexpectedly.",
+                };
+              }
+              return prev;
+            });
+            addLog("Server connection closed unexpectedly");
+          }
+        };
+      };
+
+      if (canReuseConnection && existingWs) {
+        attachHandlers(existingWs);
+        addLog("Reusing local server connection...");
+        addLog(`Starting simulation: ${config.mode} mode`);
+        addLog(`Config: ${simConfig.batch} games, ${iterLabel} iterations`);
+        try {
+          existingWs.send(JSON.stringify({ type: "start", config: simConfig }));
+        } catch {
+          runningRef.current = false;
+          setServerStatus("error");
+          setState((prev) => ({
+            ...prev,
+            status: "error",
+            error: "Failed to start simulation on existing server connection.",
+          }));
+          addLog("Failed to start simulation on existing server connection");
+        }
+        return;
+      }
+
       addLog(`Connecting to local server at ${LOCAL_SERVER_URL}...`);
 
       const ws = new WebSocket(LOCAL_SERVER_URL);
       wsRef.current = ws;
+      attachHandlers(ws);
 
       ws.onopen = () => {
         if (wsIdRef.current !== thisId) return; // stale
@@ -376,44 +446,17 @@ export function useWorkerSimulation(): UseWorkerSimulationReturn {
         addLog(`Connected to local server (Node.js process)`);
         addLog(`Starting simulation: ${config.mode} mode`);
         addLog(`Config: ${simConfig.batch} games, ${iterLabel} iterations`);
-        ws.send(JSON.stringify({ type: "start", config: simConfig }));
-      };
-
-      ws.onmessage = (event) => {
-        if (wsIdRef.current !== thisId) return; // stale
         try {
-          const msg: WorkerOutMessage = JSON.parse(event.data as string);
-          handleMessage(msg);
+          ws.send(JSON.stringify({ type: "start", config: simConfig }));
         } catch {
-          // ignore non-JSON
-        }
-      };
-
-      ws.onerror = () => {
-        if (wsIdRef.current !== thisId) return; // stale
-        setServerStatus("error");
-        runningRef.current = false;
-        setState((prev) => ({
-          ...prev,
-          status: "error",
-          error: "Could not connect to local server. Run: npm run server",
-        }));
-        addLog("Failed to connect to local server. Make sure it's running: npm run server");
-      };
-
-      ws.onclose = () => {
-        if (wsIdRef.current !== thisId) return; // stale — old connection closing
-        setServerStatus("disconnected");
-        // If simulation was still running, the server closed unexpectedly
-        if (runningRef.current) {
           runningRef.current = false;
-          setState((prev) => {
-            if (prev.status === "running") {
-              return { ...prev, status: "completed" };
-            }
-            return prev;
-          });
-          addLog("Server connection closed");
+          setServerStatus("error");
+          setState((prev) => ({
+            ...prev,
+            status: "error",
+            error: "Failed to send start message to local server.",
+          }));
+          addLog("Failed to send start message to local server");
         }
       };
     },
