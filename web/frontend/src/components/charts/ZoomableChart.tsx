@@ -12,7 +12,7 @@ interface ZoomableChartProps {
   /** Chart height – px number or CSS string like '100%' */
   height: number | string;
   /** Optional title (top-left label) */
-  title?: string;
+  title?: ReactNode;
   /** Optional right-side legend / badge elements */
   legend?: ReactNode;
   /** The Recharts ResponsiveContainer + chart */
@@ -137,11 +137,7 @@ export function ZoomableChart({
     <div className={`zoomable-chart h-full flex flex-col ${className}`}>
       {(title || legend) && (
         <div className="flex items-center justify-between px-2 mb-1 flex-shrink-0">
-          {title && (
-            <div className="text-xs font-semibold text-gray-400 font-mono tracking-wide uppercase">
-              {title}
-            </div>
-          )}
+          {title && <div className="text-xs font-semibold text-gray-400 font-mono tracking-wide uppercase">{title}</div>}
           {legend && <div className="flex gap-3 text-xs">{legend}</div>}
         </div>
       )}

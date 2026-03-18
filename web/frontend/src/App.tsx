@@ -7,6 +7,7 @@ import {
   PlotPanel,
   MatrixEditor,
 } from "./components";
+import { DualityGapModal } from "./components/DualityGapModal";
 import type { ControlsConfig } from "./components/ControlsPanel";
 import type { SimMode } from "./workers/sim.worker";
 import { getRPSGame } from "./core/games";
@@ -32,6 +33,7 @@ const defaultConfig: ControlsConfig = {
 function App() {
   const [config, setConfig] = useState<ControlsConfig>(defaultConfig);
   const [showInfo, setShowInfo] = useState(false);
+  const [isDualityModalOpen, setIsDualityModalOpen] = useState(false);
   const [visibleGames, setVisibleGames] = useState<boolean[]>([]);
   const [selectedIterationIndex, setSelectedIterationIndex] = useState<number>(0);
   const [explorerGameIndex, setExplorerGameIndex] = useState<number>(-1); // -1 = All Games, -2 = Average
@@ -121,6 +123,13 @@ function App() {
             </p>
           </div>
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsDualityModalOpen(true)}
+              className="px-2.5 py-1 rounded border border-blue-500/30 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 transition-colors text-xs font-semibold"
+              title="Open duality gap visualizer"
+            >
+              Duality Gap
+            </button>
             <button
               onClick={() => setShowInfo(!showInfo)}
               className="text-muted hover:text-white transition-colors"
@@ -253,6 +262,11 @@ function App() {
       <footer className="flex-shrink-0 border-t border-border py-3 text-center text-xs text-muted">
         Browser-based simulation - All computations run locally on your device
       </footer>
+
+      <DualityGapModal
+        isOpen={isDualityModalOpen}
+        onClose={() => setIsDualityModalOpen(false)}
+      />
     </div>
   );
 }
