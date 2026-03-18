@@ -73,7 +73,7 @@ interface ControlsPanelProps {
   serverStatus: ServerStatus;
 }
 
-const SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10];
+const SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
 const MAX_ITERATIONS_DEFAULT = 1_000_000;
 const MAX_ITERATIONS_LOCAL = 1_000_000_000;
 const MAX_CHUNK_SIZE = 10000;
