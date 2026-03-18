@@ -14,8 +14,10 @@ import { ZoomableChart } from "./charts/ZoomableChart";
 import { downsampleData, niceIterationTicks, formatIterationTick } from "./charts/useChartZoom";
 import type { Domain, ZoomActions } from "./charts/useChartZoom";
 
-const ROW_COLOR = "#22c55e";
-const COL_COLOR = "#ef4444";
+const ROW_COLOR = "#86efac";
+const COL_COLOR = "#fca5a5";
+const ROW_STROKE = "#14532d";
+const COL_STROKE = "#7f1d1d";
 
 interface BestResponseChartProps {
   iterations: number[];
@@ -89,7 +91,7 @@ export function BestResponseChart({
     const rowPts: DataPoint[] = [];
     const colPts: DataPoint[] = [];
 
-    const OFFSET = 0.22; // vertical jitter so row/col dots don't overlap
+    const OFFSET = 0.3; // vertical jitter so row/col dots are more clearly separated
     for (let i = 0; i < len; i++) {
       rowPts.push({ iteration: iterations[i], action: bestRowHistory[i] + OFFSET });
       colPts.push({ iteration: iterations[i], action: bestColHistory[i] - OFFSET });
@@ -184,7 +186,7 @@ export function BestResponseChart({
             dataKey="action"
             type="number"
             stroke="#505050"
-            domain={[-0.3, Math.max(matrixSize - 1, 1) + 0.3]}
+            domain={[-0.4, Math.max(matrixSize - 1, 1) + 0.4]}
             ticks={Array.from({ length: matrixSize }, (_, i) => i)}
             tickFormatter={(v: number) => String(v)}
             fontSize={9}
@@ -198,11 +200,13 @@ export function BestResponseChart({
               borderRadius: "6px",
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 11,
+              color: "#f3f4f6",
               padding: "8px 12px",
               boxShadow: "0 4px 12px rgba(0, 0, 0, 0.5)",
             }}
             wrapperStyle={{ zIndex: 50, opacity: 1 }}
             labelStyle={{ color: "#a0a0a0", fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}
+            itemStyle={{ color: "#f3f4f6", fontFamily: "'JetBrains Mono', monospace" }}
             formatter={(value: number, name: string) => [Math.round(value), name === "row" ? "Row BR" : "Col BR"]}
             labelFormatter={(label) => `Iter: ${Number(label).toLocaleString()}`}
           />
@@ -218,7 +222,9 @@ export function BestResponseChart({
           <Scatter
             data={rowData}
             fill={ROW_COLOR}
-            opacity={0.6}
+            stroke={ROW_STROKE}
+            strokeWidth={0.8}
+            opacity={0.75}
             name="row"
             dataKey="action"
             shape="circle"
@@ -228,7 +234,9 @@ export function BestResponseChart({
           <Scatter
             data={colData}
             fill={COL_COLOR}
-            opacity={0.6}
+            stroke={COL_STROKE}
+            strokeWidth={0.8}
+            opacity={0.75}
             name="col"
             dataKey="action"
             shape="diamond"

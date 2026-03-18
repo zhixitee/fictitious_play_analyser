@@ -319,6 +319,10 @@ export function stepChunk(state: SolverState, steps: number): ChunkResult {
     countRow[bestRow] += 1;
     countCol[bestCol] += 1;
 
+    // Record chosen best responses for per-iteration diagnostics/visualization.
+    bestRowHistory[k] = bestRow;
+    bestColHistory[k] = bestCol;
+
     // Skew-symmetric game: enforce x_t = y_t to prevent
     // floating-point drift from breaking the symmetric-FP invariant.
     if (cfg.symmetric) {
