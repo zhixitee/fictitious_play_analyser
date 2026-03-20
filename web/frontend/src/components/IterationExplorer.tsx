@@ -236,19 +236,23 @@ export function IterationExplorer({
     onIterationChange(finalValue);
     onIterationDragEnd?.();
   }, [onIterationChange, sliderValue, onIterationDragEnd]);
+
+  const activeIterationIndex = hasData
+    ? Math.min(Math.max(sliderValue, 0), maxIndex)
+    : 0;
   
   const currentIteration = hasData 
-    ? state.iterations[Math.min(selectedIterationIndex, maxIndex)] || 0 
+    ? state.iterations[activeIterationIndex] || 0 
     : 0;
   
   const currentGap = useMemo(() => {
     if (!hasData) return 0;
-    const idx = Math.min(selectedIterationIndex, maxIndex);
+    const idx = activeIterationIndex;
     if (explorerGameIndex === -1 || explorerGameIndex === -2) {
       return state.avgGaps[idx] || 0;
     }
     return state.allGaps[explorerGameIndex]?.[idx] || 0;
-  }, [hasData, selectedIterationIndex, maxIndex, explorerGameIndex, state.avgGaps, state.allGaps]);
+  }, [hasData, activeIterationIndex, explorerGameIndex, state.avgGaps, state.allGaps]);
   
   const metrics = useMemo(() => {
     const t = currentIteration || 1;
@@ -285,17 +289,34 @@ export function IterationExplorer({
     
     const totalIterations = state.iterations.length;
     const numChunks = rowStrats.length;
-    
-    const chunkIndex = Math.min(
-      Math.floor((selectedIterationIndex / totalIterations) * numChunks),
-      numChunks - 1
-    );
-    
-    return {
-      row: rowStrats[chunkIndex] || [],
-      col: colStrats[chunkIndex] || [],
+
+    const maxIterIndex = Math.max(totalIterations - 1, 1);
+    const maxChunkIndex = Math.max(numChunks - 1, 0);
+    const chunkPos = (activeIterationIndex / maxIterIndex) * maxChunkIndex;
+    const lowerChunk = Math.floor(chunkPos);
+    const upperChunk = Math.min(lowerChunk + 1, maxChunkIndex);
+    const t = chunkPos - lowerChunk;
+
+    const blendStrategies = (a: number[] | undefined, b: number[] | undefined): number[] => {
+      const first = a ?? [];
+      const second = b ?? first;
+      const dim = Math.max(first.length, second.length);
+      const out = new Array<number>(dim);
+
+      for (let i = 0; i < dim; i++) {
+        const av = first[i] ?? 0;
+        const bv = second[i] ?? av;
+        out[i] = av + (bv - av) * t;
+      }
+
+      return out;
     };
-  }, [explorerGameIndex, hasData, selectedIterationIndex, state.rowStrategies, state.colStrategies, state.iterations.length]);
+
+    return {
+      row: blendStrategies(rowStrats[lowerChunk], rowStrats[upperChunk]),
+      col: blendStrategies(colStrats[lowerChunk], colStrats[upperChunk]),
+    };
+  }, [explorerGameIndex, hasData, activeIterationIndex, state.rowStrategies, state.colStrategies, state.iterations.length]);
   
   const handleExportCSV = () => {
     if (state.iterations.length === 0) return;
